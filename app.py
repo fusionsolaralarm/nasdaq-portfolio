@@ -298,10 +298,37 @@ def get_company_business_info(ticker_symbol):
         long_name = info.get('longName', ticker_symbol)
         sector = info.get('sector', 'N/A')
         industry = info.get('industry', 'N/A')
-        summary = info.get('longBusinessSummary', 'ไม่มีข้อมูลสรุปธุรกิจภาษาอังกฤษจากระบบ')
+        summary = info.get('longBusinessSummary', 'ไม่มีข้อมูลสรุปธุรกิจจากระบบ Yahoo Finance')
         return long_name, sector, industry, summary
     except Exception:
         return ticker_symbol, 'N/A', 'N/A', 'ไม่สามารถดึงข้อมูลธุรกิจได้ในขณะนี้'
+
+def get_detailed_future_outlook(sector, industry, ticker):
+    # ฟังก์ชันเสริมสร้างคำอธิบายเชิงลึกแยกตาม Sector เพื่อให้บทวิเคราะห์มีความละเอียดสูงขึ้น
+    sector_lower = str(sector).lower()
+    if "technology" in sector_lower or "semiconductor" in industry.lower():
+        return (
+            f"บริษัท {ticker} ตั้งอยู่ในกลุ่มอุตสาหกรรมเทคโนโลยีขั้นสูงและเซมิคอนดักเตอร์ ซึ่งเป็นหัวใจสำคัญของโครงสร้างพื้นฐานยุคปัญญาประดิษฐ์ (AI Infrastructure) "
+            "แนวโน้มในอนาคตยังคงได้รับแรงหนุนมหาศาลจากงบลงทุน (CapEx) ของกลุ่ม Cloud Hyperscalers และการนำ AI ไปประยุกต์ใช้ในระดับองค์กร (Enterprise AI) "
+            "ความเสี่ยงสำคัญคือวัฏจักรความต้องการชิป (Cyclical Demand) และอุปทานส่วนเกินที่อาจเกิดขึ้นได้ในระยะสั้น แต่ในระยะยาวมีความได้เปรียบเชิงการแข่งขันสูงจากความซับซ้อนทางเทคโนโลยี"
+        )
+    elif "consumer" in sector_lower:
+        return (
+            f"บริษัท {ticker} ดำเนินธุรกิจในกลุ่มสินค้าอุปโภคบริโภค ซึ่งมีความเชื่อมโยงโดยตรงกับกำลังซื้อของผู้บริโภค อัตราเงินเฟ้อ และทิศทางอัตราดอกเบี้ยนโยบาย "
+            "แนวโน้มในอนาคตขึ้นอยู่กับความสามารถในการรักษาอำนาจในการกำหนดราคาสินค้า (Pricing Power) เพื่อป้องกันต้นทุนที่สูงขึ้น "
+            "รวมถึงการปรับตัวสู่ช่องทางดิจิทัลและอีคอมเมิร์ซเพื่อรักษาฐานลูกค้าในระยะยาว"
+        )
+    elif "health" in sector_lower:
+        return (
+            f"บริษัท {ticker} อยู่ในกลุ่มเทคโนโลยีชีวภาพและสุขภาพ (Healthcare & Biotech) ซึ่งขับเคลื่อนด้วยสังคมผู้สูงอายุทั่วโลก (Aging Population) "
+            "และนวัตกรรมการแพทย์เฉพาะบุคคล (Precision Medicine) แนวโน้มในอนาคตมีปัจจัยบวกจากการคิดค้นนวัตกรรมยาและเครื่องมือแพทย์ใหม่ๆ "
+            "แต่มีความเสี่ยงด้านกฎระเบียบ การควบคุมราคายาจากภาครัฐ และผลการทดลองทางคลินิก (Clinical Trials)"
+        )
+    else:
+        return (
+            f"บริษัท {ticker} ในกลุ่มอุตสาหกรรม {sector} มีทิศทางเติบโตสอดคล้องกับภาพรวมเศรษฐกิจมหภาค (Macroeconomic Conditions) "
+            "แนวโน้มในอนาคตขึ้นอยู่กับประสิทธิภาพในการบริหารจัดการต้นทุนห่วงโซ่อุปทาน (Supply Chain) และความสามารถในการปรับตัวรับมือกับความผันผวนของอัตราแลกเปลี่ยนและดอกเบี้ยโลก"
+        )
 
 # --- Sidebar Configuration ---
 st.sidebar.header("⚙️ ตั้งค่าแหล่งข้อมูล & สแกนหุ้น")
@@ -414,7 +441,9 @@ else:
                 t_sma50 = r_dd['SMA 50']
 
                 long_name, sector, industry, biz_summary = get_company_business_info(t_ticker)
+                detailed_outlook = get_detailed_future_outlook(sector, industry, t_ticker)
 
+                # ใช้ st.markdown พร้อมกำหนด unsafe_allow_html=True เพื่อป้องกันปัญหาข้อความ HTML แปลกปลอมแสดงผลออกหน้าจอ
                 st.markdown(f"""
                 <div class="article-box">
                     <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ({long_name})</h2>
@@ -423,8 +452,8 @@ else:
                     <hr style="border-color: {border_color};">
                     
                     <h3>1. ลักษณะการทำธุรกิจและแนวโน้มในอนาคต (Business Profile & Future Outlook)</h3>
-                    <p><b>การประกอบธุรกิจ:</b> {biz_summary}</p>
-                    <p><b>แนวโน้มธุรกิจในอนาคต:</b> จากโครงสร้างอุตสาหกรรมปัจจุบัน บริษัทนี้มีปัจจัยขับเคลื่อนจากกระแสเทคโนโลยีและอุปสงค์ในตลาดโลก หากพิจารณาตามโมเดลเชิงปริมาณ บริษัทที่มีพื้นฐานในกลุ่ม {sector} มักจะมีความอ่อนไหวต่อวัฏจักรเศรษฐกิจมหภาค แต่หากความสามารถในการทำกำไรยังเติบโต จะส่งผลให้โมเมนตัมราคามีความน่าสนใจในระยะกลางถึงยาว</p>
+                    <p><b>ภาพรวมการประกอบธุรกิจ:</b> {biz_summary}</p>
+                    <p><b>การวิเคราะห์เจาะลึกแนวโน้มธุรกิจในอนาคต:</b> {detailed_outlook}</p>
 
                     <h3>2. สรุปภาพรวมคะแนนและความน่าจะเป็น (Quantitative Score & Verdict)</h3>
                     <p>โมเดลเชิงปริมาณประเมินความแข็งแกร่งของหลักทรัพย์ <b>{t_ticker}</b> ได้คะแนนรวมอยู่ที่ <b>{t_score}/100 คะแนน</b> โดยให้คำแนะนำสถานะทางสถิติเป็น: <b style="color: {heading_color};">{t_signal}</b> โครงสร้างราคาปัจจุบันเคลื่อนไหวอยู่ในภาวะ <b>{t_trend}</b></p>
