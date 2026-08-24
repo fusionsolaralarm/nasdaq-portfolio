@@ -14,35 +14,37 @@ st.set_page_config(
 st.title("📈 Simon Screener - Quantitative Model & AI Assistant")
 st.markdown("ระบบสแกนหุ้นและผู้ช่วย AI อัจฉริยะในสไตล์กองทุน Renaissance Technologies (Jim Simons)")
 
-# ฟังก์ชันดึงรายชื่อหุ้นทั้งหมด (S&P 500 + หุ้นเติบโต/หุ้นจิ๋ว)
+# ใช้ชุดรายชื่อหุ้นตลาดสหรัฐฯ แบบเสถียร (หุ้นใหญ่, หุ้นเติบโต, หุ้นจิ๋ว/Small-Cap ยอดนิยม)
 @st.cache_data
 def get_us_stock_symbols():
-    try:
-        table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
-        df_sp500 = table[0]
-        symbols = df_sp500['Symbol'].tolist()
-        symbols = [s.replace('.', '-') for s in symbols]
-        
-        extra_stocks = [
-            "ASTS", "LUNR", "IONQ", "SOUN", "RGTI", "QBTS", "ACHR", "JOBY", 
-            "PLTR", "RIVN", "HOOD", "ARM", "SMCI", "RDDT", "DJT", "BBAI", 
-            "HLGN", "CLSK", "RIOT", "MARA", "HUT", "BITF", "OPEN", "LMND"
-        ]
-        for s in extra_stocks:
-            if s not in symbols:
-                symbols.append(s)
-        return symbols
-    except Exception:
-        return ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "ASTS", "LUNR", "IONQ", "PLTR", "SMCI"]
+    return [
+        # Magnificent 7 & Tech Giants
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "NFLX", "AMD", "INTC", 
+        "CRM", "ADBE", "ORCL", "IBM", "NOW", "SNOW", "PLTR", "DDOG", "CRWD",
+        # Finance & Banking
+        "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "PYPL",
+        # Consumer & Retail
+        "WMT", "COST", "TGT", "HD", "NKE", "SBUX", "MCD", "KO", "PEP", "DIS",
+        # Healthcare & Biotech
+        "UNH", "JNJ", "PFE", "ABBV", "LLY", "MRK", "AMGN", "TMO",
+        # Industrial & Energy
+        "XOM", "CVX", "CAT", "BA", "GE", "HON", "UPS", "LMT",
+        # Small-Cap / Growth / Micro-Cap (หุ้นจิ๋ว หุ้นซิ่ง)
+        "ASTS", "LUNR", "IONQ", "SOUN", "RGTI", "QBTS", "ACHR", "JOBY", 
+        "RIVN", "HOOD", "ARM", "SMCI", "RDDT", "DJT", "BBAI", 
+        "HLGN", "CLSK", "RIOT", "MARA", "HUT", "BITF", "OPEN", "LMND",
+        # Additional S&P 500 Stocks
+        "AVGO", "COST", "ACN", "MCD", "CSCO", "T-Mobile", "TXN", "QCOM", "AMAT",
+        "IBM", "INTU", "BKNG", "ISRG", "GILD", "MDLZ", "ADI", "LRCX", "VRTX"
+    ]
 
 symbols = get_us_stock_symbols()
 
 @st.cache_data(ttl=3600)
 def fetch_stock_data_and_simons_logic(ticker_list):
     data_list = []
-    target_symbols = ticker_list[:180]
     
-    for ticker in target_symbols:
+    for ticker in ticker_list:
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
@@ -56,10 +58,10 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             roe = info.get('returnOnEquity', np.nan)
             
             hist = stock.history(period="6mo")
-            if not hist.empty and len(hist) > 50:
+            if not hist.empty and len(hist) > 30:
                 current_p = hist['Close'].iloc[-1]
-                sma_50 = hist['Close'].rolling(50).mean().iloc[-1]
-                return_1m = (current_p - hist['Close'].iloc[-20]) / hist['Close'].iloc[-20] * 100
+                sma_50 = hist['Close'].rolling(min(30, len(hist))).mean().iloc[-1]
+                return_1m = (current_p - hist['Close'].iloc[-min(20, len(hist))]) / hist['Close'].iloc[-min(20, len(hist))] * 100
                 volatility = hist['Close'].pct_change().std() * np.sqrt(252) * 100
             else:
                 return_1m = 0
@@ -102,11 +104,11 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             
     return pd.DataFrame(data_list)
 
-with st.spinner("🤖 กำลังประมวลผลโมเดลสถิติตลาดสหรัฐฯ..."):
+with st.spinner("🤖 กำลังประมวลผลโมเดลสถิติหุ้นตลาดสหรัฐฯ กรุณารอสักครู่..."):
     df = fetch_stock_data_and_simons_logic(symbols)
 
 if df.empty:
-    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้")
+    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บใหม่อีกครั้ง")
 else:
     st.sidebar.header("🔍 ตัวกรองเชิงปริมาณ (Filters)")
     
