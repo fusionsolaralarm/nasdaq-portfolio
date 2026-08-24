@@ -6,6 +6,50 @@ import openai
 import json
 import os
 
+# --- ตั้งค่าหน้าเว็บให้เป็น Wide Layout และกำหนด Theme ---
+st.set_page_config(
+    page_title="Simon Screener & Portfolio AI",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- CSS Styling เพิ่มความสวยงามหรูหราแบบ Quant Dashboard ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    .stMetric {
+        background-color: #161b22;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+    }
+    .stock-card {
+        background-color: #161b22;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #30363d;
+        margin-bottom: 15px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #161b22;
+        border-radius: 8px 8px 0px 0px;
+        padding: 10px 20px;
+        color: #c9d1d9;
+        border: 1px solid #30363d;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #238636 !important;
+        color: white !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 PORTFOLIO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "portfolio_data.json")
 
 def load_portfolio_from_disk():
@@ -23,8 +67,7 @@ def load_portfolio_from_disk():
             pass
     return pd.DataFrame([
         {"Ticker": "AAPL", "Shares": 10.0, "Buy Price (USD)": 170.0, "Asset Class": "Growth"},
-        {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0, "Asset Class": "Growth"},
-        {"Ticker": "JNJ", "Shares": 8.0, "Buy Price (USD)": 150.0, "Asset Class": "Defensive"}
+        {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0, "Asset Class": "Growth"}
     ])
 
 def save_portfolio_to_disk(df):
@@ -34,13 +77,10 @@ def save_portfolio_to_disk(df):
     except Exception as e:
         st.sidebar.error(f"บันทึกพอร์ตลงดิสก์ไม่สำเร็จ: {e}")
 
-st.set_page_config(
-    page_title="Simon Screener & Portfolio AI",
-    layout="wide"
-)
-
-st.title("Simon Screener - Quant & Portfolio AI Advisor")
-st.markdown("ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวในสไตล์ Jim Simons (Renaissance Technologies)")
+# --- Header Section ---
+st.markdown("<h1 style='text-align: center; color: #58a6ff;'>SIMON QUANT & PORTFOLIO AI ADVISOR</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #8b949e;'>ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวด้วยโมเดลสถิติเชิงปริมาณ (Renaissance Technologies Style)</p>", unsafe_allow_html=True)
+st.markdown("---")
 
 @st.cache_data
 def get_curated_symbols():
@@ -90,7 +130,7 @@ def get_full_us_market_symbols():
         return pd.DataFrame({'Symbol': curated, 'Name': curated, 'ETF': False})
 
 def compute_simons_row(ticker, close_series):
-    """คำนวณคะแนนและคำแนะนำสไตล์ Simons จากราคาปิดย้อนหลังของหุ้นหนึ่งตัว"""
+    """คำนวณคะแนนและคำแนะนำสไตล์ Simons จากราคาปิดย้อนหลัง"""
     if close_series is None:
         return None
     close_series = close_series.dropna()
@@ -169,7 +209,7 @@ def fetch_stock_data_and_simons_logic(ticker_list):
 def fetch_stock_data_batched(ticker_list, chunk_size=50):
     all_rows = []
     total = len(ticker_list)
-    progress_bar = st.progress(0.0, text="เริ่มสแกน...")
+    progress_bar = st.progress(0.0, text="กำลังสแกนตลาด...")
     for i in range(0, total, chunk_size):
         chunk = ticker_list[i:i + chunk_size]
         try:
@@ -193,40 +233,40 @@ def fetch_stock_data_batched(ticker_list, chunk_size=50):
                     continue
 
         done = min(i + chunk_size, total)
-        progress_bar.progress(done / total, text=f"สแกนแล้ว {done:,}/{total:,} ตัว (พบข้อมูลใช้ได้ {len(all_rows):,} ตัว)")
+        progress_bar.progress(done / total, text=f"สแกนแล้ว {done:,}/{total:,} ตัว (สำเร็จ {len(all_rows):,} ตัว)")
 
     progress_bar.empty()
     return pd.DataFrame(all_rows)
 
-# --- เลือกขอบเขตหุ้นที่จะสแกน ---
-st.sidebar.markdown("### ขอบเขตหุ้นที่จะสแกน")
+# --- Sidebar Configuration ---
+st.sidebar.header("⚙️ ตั้งค่าการสแกนตลาด")
 scan_mode = st.sidebar.radio(
-    "เลือกแหล่งหุ้น",
+    "เลือกแหล่งข้อมูลหุ้น",
     ["รายชื่อคัดสรร (~85 ตัว, เร็ว)", "ทั้งตลาดหุ้นสหรัฐฯ (NASDAQ + NYSE + AMEX)"]
 )
 
 if scan_mode.startswith("รายชื่อคัดสรร"):
     symbols = get_curated_symbols()
-    with st.spinner("กำลังดึงราคาล่าสุดและคำนวณโมเดลตลาดสหรัฐฯ..."):
+    with st.spinner("กำลังประมวลผลโมเดล Quant..."):
         df = fetch_stock_data_and_simons_logic(symbols)
 else:
-    with st.spinner("กำลังดึงรายชื่อหุ้นทั้งหมดที่จดทะเบียนในตลาดสหรัฐฯ..."):
+    with st.spinner("กำลังดึงรายชื่อหลักทรัพย์ทั้งหมด..."):
         full_list_df = get_full_us_market_symbols()
 
-    st.sidebar.success(f"พบหุ้น/หลักทรัพย์ทั้งหมด {len(full_list_df):,} ตัว")
+    st.sidebar.success(f"พบหลักทรัพย์ทั้งหมด {len(full_list_df):,} ตัว")
     exclude_etf = st.sidebar.checkbox("ไม่รวมกองทุน ETF (แนะนำ)", value=True)
     universe_df = full_list_df[~full_list_df['ETF']] if exclude_etf else full_list_df
 
     max_scan = st.sidebar.number_input(
-        "จำนวนหุ้นสูงสุดที่จะสแกนในรอบนี้",
+        "จำนวนหุ้นสูงสุดที่จะสแกนรอบนี้",
         min_value=50, max_value=int(len(universe_df)),
         value=min(300, int(len(universe_df))), step=50
     )
     start_offset = st.sidebar.number_input(
-        "เริ่มสแกนจากลำดับที่ (offset)",
+        "เริ่มสแกนจากลำดับที่ (Offset)",
         min_value=0, max_value=max(0, int(len(universe_df)) - 1), value=0, step=max_scan
     )
-    run_scan = st.sidebar.button("เริ่มสแกน")
+    run_scan = st.sidebar.button("🚀 เริ่มสแกนตลาดเต็มรูปแบบ", use_container_width=True)
 
     if run_scan:
         target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
@@ -236,23 +276,26 @@ else:
     if "full_scan_df" in st.session_state:
         df = st.session_state.full_scan_df
         rng = st.session_state.get("full_scan_range", (0, len(df)))
-        st.sidebar.caption(f"ผลสแกนล่าสุด: ลำดับที่ {rng[0]:,}-{rng[1]:,} จากทั้งหมด {len(universe_df):,} ตัว")
+        st.sidebar.caption(f"ผลสแกนล่าสุด: ช่วงลำดับ {rng[0]:,}-{rng[1]:,}")
     else:
-        st.info("เลือกโหมด 'ทั้งตลาดหุ้นสหรัฐฯ' แล้วกดปุ่ม 'เริ่มสแกน' ที่แถบด้านซ้ายเพื่อเริ่มดึงข้อมูล")
+        st.info("👈 กรุณาเลือกโหมด 'ทั้งตลาดหุ้นสหรัฐฯ' และกดปุ่ม 'เริ่มสแกนตลาดเต็มรูปแบบ' ที่แถบด้านซ้าย")
         st.stop()
 
 if df.empty:
-    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บใหม่อีกครั้ง หรือลองลดจำนวนหุ้นที่สแกนต่อรอบ")
+    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือลองปรับลดจำนวนหุ้นที่สแกน")
 else:
-    tab1, tab2, tab3 = st.tabs(["สแกนหุ้นตลาด", "พอร์ตของฉัน", "คุยกับ AI Jim Simons"])
+    # --- Tabs Layout ---
+    tab1, tab2, tab3 = st.tabs(["📊 สแกนหุ้นตลาด", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
 
     with tab1:
-        st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ")
-        signal_filter = st.selectbox("กรองตามคำแนะนำโมเดล", ["ทั้งหมด", "ซื้อสะสม (Strong Buy)", "ถือ / เฝ้าสังเกต (Hold)", "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"])
+        st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ (Quantitative Screener)")
+        col_f1, col_f2 = st.columns([2, 2])
+        with col_f1:
+            signal_filter = st.selectbox("กรองตามคำแนะนำโมเดล", ["ทั้งหมด", "ซื้อสะสม (Strong Buy)", "ถือ / เฝ้าสังเกต (Hold)", "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"])
+        with col_f2:
+            search_query = st.text_input("🔍 ค้นหา Ticker หุ้นเจาะจง", "").upper()
 
         df_filtered = df if signal_filter == "ทั้งหมด" else df[df['Simons Signal'] == signal_filter]
-
-        search_query = st.text_input("ค้นหา Ticker หุ้น", "").upper()
         if search_query:
             df_filtered = df_filtered[df_filtered['Ticker'].str.contains(search_query)]
 
@@ -270,14 +313,12 @@ else:
         )
 
     with tab2:
-        st.subheader("พอร์ตการลงทุนของคุณ (My Portfolio Analysis)")
-        st.markdown("กรอกข้อมูลหุ้น จำนวนหุ้น และราคาต้นทุนที่คุณซื้อมา เพื่อคำนวณกำไร/ขาดทุน วิเคราะห์สัดส่วน และบทวิเคราะห์รายตัว")
-        st.caption("ระบบจะจดจำพอร์ตของคุณไว้อัตโนมัติ (บันทึกลงไฟล์บนดิสก์)")
+        st.subheader("พอร์ตการลงทุนของคุณ (My Portfolio & Deep Dive Analysis)")
+        st.markdown("จัดการข้อมูลพอร์ตของคุณด้านล่าง ระบบจะบันทึกอัตโนมัติ พร้อมทั้งแสดง **บทวิเคราะห์หุ้นรายตัวเชิงลึก** ทันที")
 
         if "portfolio_input" not in st.session_state:
             st.session_state.portfolio_input = load_portfolio_from_disk()
 
-        st.markdown("แก้ไขตารางด้านล่างนี้เพื่อใส่พอร์ตของคุณ (ระบุ Asset Class เป็น Growth หรือ Defensive):")
         edited_portfolio = st.data_editor(
             st.session_state.portfolio_input,
             num_rows="dynamic",
@@ -297,28 +338,17 @@ else:
             st.session_state.portfolio_input = edited_portfolio
             save_portfolio_to_disk(edited_portfolio)
 
-        col_save1, col_save2 = st.columns([1, 4])
-        with col_save1:
-            if st.button("ล้างพอร์ตที่บันทึกไว้"):
-                default_df = pd.DataFrame([
-                    {"Ticker": "AAPL", "Shares": 10.0, "Buy Price (USD)": 170.0, "Asset Class": "Growth"},
-                    {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0, "Asset Class": "Growth"},
-                    {"Ticker": "JNJ", "Shares": 8.0, "Buy Price (USD)": 150.0, "Asset Class": "Defensive"}
-                ])
-                st.session_state.portfolio_input = default_df
-                save_portfolio_to_disk(default_df)
-                st.rerun()
-
-        with st.expander("ตั้งค่าเป้าหมายพอร์ตและความเสี่ยง"):
-            col_t1, col_t2 = st.columns(2)
-            with col_t1:
-                target_growth_pct = st.slider("เป้าหมายสัดส่วน Growth (%)", min_value=0, max_value=100, value=60, step=5)
-            with col_t2:
-                max_concentration = st.slider("เกณฑ์เตือนความกระจุกตัว หุ้นตัวเดียวเกิน (%)", min_value=10, max_value=50, value=25, step=5)
+        if st.button("🗑️ ล้างพอร์ตเป็นค่าเริ่มต้น"):
+            default_df = pd.DataFrame([
+                {"Ticker": "AAPL", "Shares": 10.0, "Buy Price (USD)": 170.0, "Asset Class": "Growth"},
+                {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0, "Asset Class": "Growth"}
+            ])
+            st.session_state.portfolio_input = default_df
+            save_portfolio_to_disk(default_df)
+            st.rerun()
 
         df_res = pd.DataFrame()
         price_history_map = {}
-
         if not edited_portfolio.empty:
             clean_rows = []
             for _, row in edited_portfolio.iterrows():
@@ -326,8 +356,6 @@ else:
                 shares = float(row['Shares']) if pd.notna(row['Shares']) else 0.0
                 buy_price = float(row['Buy Price (USD)']) if pd.notna(row['Buy Price (USD)']) else 0.0
                 asset_class = str(row.get('Asset Class', 'Growth')).strip() if pd.notna(row.get('Asset Class', 'Growth')) else 'Growth'
-                if asset_class not in ("Growth", "Defensive"):
-                    asset_class = "Growth"
                 if ticker and shares > 0 and buy_price > 0:
                     clean_rows.append({'Ticker': ticker, 'Shares': shares, 'Buy Price (USD)': buy_price, 'Asset Class': asset_class})
 
@@ -354,6 +382,9 @@ else:
                 signal = "ถือประเมินสถานะ"
                 score = 50
                 trend = "ไม่ทราบ"
+                volatility = 0.0
+                sma_50 = 0.0
+                mom_1m = 0.0
 
                 match_row = df[df['Ticker'] == ticker]
                 if not match_row.empty:
@@ -361,6 +392,9 @@ else:
                     signal = match_row.iloc[0]['Simons Signal']
                     score = int(match_row.iloc[0]['Score'])
                     trend = match_row.iloc[0]['Trend']
+                    volatility = float(match_row.iloc[0]['Volatility (%)'])
+                    sma_50 = float(match_row.iloc[0]['SMA 50'])
+                    mom_1m = float(match_row.iloc[0]['Momentum 1M (%)'])
 
                 try:
                     hist = yf.download(ticker, period="6mo", progress=False)
@@ -371,7 +405,7 @@ else:
                             current_price = float(close_series.iloc[-1])
                             ref_price = float(close_series.iloc[-min(5, len(close_series))])
                             wk_change = (current_price - ref_price) / ref_price * 100
-                            trend = "ขาขึ้น" if wk_change > 0.5 else ("ขาลง" if wk_change < -0.5 else "ไซด์เวย์")
+                            trend = "ขาขึ้น" if wk_change > 0.5 else ("ขาลง" if wk_change -0.5 else "ไซด์เวย์")
                 except Exception:
                     if current_price == 0.0:
                         current_price = buy_price
@@ -393,61 +427,29 @@ else:
                     'Simons Signal': signal,
                     'Score': score,
                     'Trend': trend,
+                    'Volatility (%)': volatility,
+                    'SMA 50': sma_50,
+                    'Momentum 1M (%)': mom_1m,
                     'Asset Class': asset_class
                 })
 
             if portfolio_results:
                 df_res = pd.DataFrame(portfolio_results)
-
                 total_invested = df_res['Invested Value ($)'].sum()
                 total_current = df_res['Current Value ($)'].sum()
                 total_pl = total_current - total_invested
                 total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
-
                 df_res['Weight in Portfolio (%)'] = (df_res['Current Value ($)'] / total_current * 100) if total_current > 0 else 0.0
 
                 st.markdown("---")
                 col_m1, col_m2, col_m3 = st.columns(3)
-                col_m1.metric("มูลค่าลงทุนรวม", f"${total_invested:,.2f}")
-                col_m2.metric("มูลค่าปัจจุบันรวม", f"${total_current:,.2f}")
-                col_m3.metric("กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
+                col_m1.metric("💰 มูลค่าลงทุนรวม", f"${total_invested:,.2f}")
+                col_m2.metric("📈 มูลค่าพอร์ตปัจจุบัน", f"${total_current:,.2f}")
+                col_m3.metric("📊 กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
 
-                # --- 1. ตรวจสอบสัดส่วน Growth vs Defensive & เป้าหมาย ---
-                st.markdown("### 1. วิเคราะห์สัดส่วน Asset Class (Growth vs Defensive)")
-                class_group = df_res.groupby('AssetClass')['Current Value ($)'].sum()
-                current_growth_val = class_group.get('Growth', 0.0)
-                current_def_val = class_group.get('Defensive', 0.0)
-                actual_total = current_growth_val + current_def_val
-
-                actual_growth_pct = (current_growth_val / actual_total * 100) if actual_total > 0 else 0.0
-                actual_def_pct = (current_def_val / actual_total * 100) if actual_total > 0 else 0.0
-                target_def_pct = 100.0 - target_growth_pct
-
-                col_ac1, col_ac2 = st.columns(2)
-                with col_ac1:
-                    st.metric("สัดส่วน Growth ปัจจุบัน", f"{actual_growth_pct:.1f}%", f"เป้าหมาย: {target_growth_pct}%")
-                with col_ac2:
-                    st.metric("สัดส่วน Defensive ปัจจุบัน", f"{actual_def_pct:.1f}%", f"เป้าหมาย: {target_def_pct}%")
-
-                growth_diff = abs(actual_growth_pct - target_growth_pct)
-                if growth_diff > 10.0:
-                    st.warning(f"⚠️ **เตือนความเบี่ยงเบนสัดส่วน:** สัดส่วน Growth ปัจจุบันเบี่ยงเบนจากเป้าหมาย {growth_diff:.1f}% (เกินกรอบ 10 จุด) แนะนำพิจารณา Rebalance พอร์ต")
-                else:
-                    st.success("✅ สัดส่วนสินทรัพย์อยู่ในกรอบเป้าหมายที่ยอมรับได้ (เบี่ยงเบนไม่เกิน 10%)")
-
-                # --- 2. Concentration Risk ตรวจสอบความกระจุกตัว ---
-                st.markdown("### 2. การตรวจสอบความเสี่ยงด้านความกระจุกตัว (Concentration Risk)")
-                overweight_stocks = df_res[df_res['Weight in Portfolio (%)'] > max_concentration]
-                if not overweight_stocks.empty:
-                    for _, ow in overweight_stocks.iterrows():
-                        st.error(f"🚨 **เตือนความกระจุกตัว:** หุ้น **{ow['Ticker']}** มีสัดส่วนสูงถึง {ow['Weight in Portfolio (%)']:.1f}% ของพอร์ต (เกินเกณฑ์เตือนที่ {max_concentration}%) ควรพิจารณาลดความเสี่ยงหรือกระจายลงทุนเพิ่ม")
-                else:
-                    st.success(f"✅ ไม่มีหุ้นตัวใดมีสัดส่วนเกินเกณฑ์เตือน ({max_concentration}%) ของพอร์ต")
-
-                # --- 3. ตารางพอร์ตหลัก ---
-                st.markdown("### 3. รายละเอียดพอร์ตและผลตอบแทนรายตัว")
+                st.markdown("### 📋 สรุปภาพรวมพอร์ตการลงทุน")
                 st.dataframe(
-                    df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Weight in Portfolio (%)', 'Asset Class', 'Simons Signal', 'Trend', 'Score']],
+                    df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Weight in Portfolio (%)', 'Asset Class', 'Simons Signal', 'Score']],
                     column_config={
                         "Buy Price (USD)": st.column_config.NumberColumn(format="$%.2f"),
                         "Current Price (USD)": st.column_config.NumberColumn(format="$%.2f"),
@@ -460,119 +462,40 @@ else:
                     hide_index=True
                 )
 
+                # --- เพิ่มส่วน: บทวิเคราะห์หุ้นรายตัวที่ถืออยู่ (Stock-by-Stock Deep Dive Analysis) ---
+                st.markdown("---")
+                st.subheader("🔍 บทวิเคราะห์หุ้นรายตัวเชิงลึกในพอร์ต (Stock Deep Dive Analysis)")
+                st.markdown("รายงานวิเคราะห์สถานะทางเทคนิคและสถิติเชิงปริมาณสำหรับหุ้นแต่ละตัวที่คุณถือครองอยู่:")
+
+                for _, r in df_res.iterrows():
+                    ticker = r['Ticker']
+                    pl_pct = r['Profit/Loss (%)']
+                    pl_color = "🟢 กำไร" if pl_pct >= 0 else "🔴 ขาดทุน"
+                    
+                    with st.container():
+                        st.markdown(f"""
+                        <div class="stock-card">
+                            <h3>📌 หุ้น: {ticker} ({r['Asset Class']})</h3>
+                            <p><b>สถานะกำไร/ขาดทุน:</b> {pl_color} <b>{pl_pct:.2f}%</b> (${r['Profit/Loss ($)']:,.2f}) | <b>น้ำหนักในพอร์ต:</b> {r['Weight in Portfolio (%)']:.1f}%</p>
+                            <ul>
+                                <li><b>คำแนะนำจากโมเดล Simons:</b> {r['Simons Signal']} (คะแนนความแข็งแกร่ง: {r['Score']}/100)</li>
+                                <li><b>แนวโน้มระยะสั้น (Trend):</b> {r['Trend']} (โมเมนตัม 1 เดือน: {r.get('Momentum 1M (%)', 0):.2f}%)</li>
+                                <li><b>ระดับความผันผวน (Volatility):</b> {r.get('Volatility (%)', 0):.2f}% ต่อปี</li>
+                                <li><b>เส้นค่าเฉลี่ย SMA 50:</b> ${r.get('SMA 50', 0):.2f} (ราคาปัจจุบัน: ${r['Current Price (USD)']:,.2f})</li>
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                 st.download_button(
-                    label="ดาวน์โหลดรายงานพอร์ต (CSV)",
+                    label="📥 ดาวน์โหลดรายงานพอร์ต (CSV)",
                     data=df_res.to_csv(index=False).encode('utf-8-sig'),
                     file_name="portfolio_report.csv",
                     mime="text/csv"
                 )
 
-                # --- 4. บทวิเคราะห์หุ้นรายตัวในพอร์ต ---
-                st.markdown("### 4. บทวิเคราะห์หุ้นรายตัวในพอร์ต (Individual Stock Analysis)")
-                st.markdown("เจาะลึกสถานะเชิงปริมาณของแต่ละตัวที่คุณถืออยู่ เพื่อประกอบการตัดสินใจ Rebalance หรือถือต่อ")
-                
-                for _, r in df_res.iterrows():
-                    t_sym = r['Ticker']
-                    t_class = r['Asset Class']
-                    t_sig = r['Simons Signal']
-                    t_score = r['Score']
-                    t_trend = r['Trend']
-                    t_pl_pct = r['Profit/Loss (%)']
-                    t_weight = r['Weight in Portfolio (%)']
-
-                    with st.expander(f"📌 วิเคราะห์หุ้น: {t_sym} ({t_class}) — น้ำหนักในพอร์ต {t_weight:.1f}%"):
-                        col_da1, col_da2, col_da3 = st.columns(3)
-                        col_da1.metric("คะแนนโมเดล Simons", f"{t_score}/100 คะแนน", f"สถานะ: {t_sig}")
-                        col_da2.metric("ผลกำไร/ขาดทุนสะสม", f"{t_pl_pct:+.2f}%")
-                        col_da3.metric("แนวโน้มระยะสั้น", f"{t_trend}")
-
-                        # ข้อความวิเคราะห์อัตโนมัติเชิงปริมาณ
-                        analysis_text = f"**บทวิเคราะห์เชิงปริมาณสำหรับ {t_sym}:**\n"
-                        if t_score >= 70:
-                            analysis_text += f"- หุ้นตัวนี้มีความแข็งแกร่งสูงมากตามโมเดลควอนต์ (Score {t_score}) ราคาอยู่เหนือเส้นค่าเฉลี่ยและมีโมเมนตัมเชิงบวก เหมาะแก่การถือครองต่อหรือสะสมเพิ่ม\n"
-                        elif t_score >= 45:
-                            analysis_text += f"- หุ้นตัวนี้อยู่ในเกณฑ์ปานกลาง (Score {t_score}) โมเดลแนะนำให้ 'ถือ / เฝ้าสังเกต' ทิศทางราคาเพื่อรอสัญญาณชัดเจน\n"
-                        else:
-                            analysis_text += f"- หุ้นตัวนี้มีความอ่อนแอเชิงปริมาณ (Score {t_score}) สัญญาณเตือนให้ระมัดระวัง อาจพิจารณาตัดขายทำกำไรหรือตัดขาดทุนตามวินิจฉัย\n"
-
-                        if t_pl_pct < -20:
-                            analysis_text += f"- ⚠️ ขาดทุนสะสมค่อนข้างสูง ({t_pl_pct:.2f}%) ควรตรวจสอบว่าปัจจัยพื้นฐานหรือเทรนด์เปลี่ยนไปจากเดิมหรือไม่เพื่อป้องกันการจมทุน\n"
-                        elif t_pl_pct > 30:
-                            analysis_text += f"- 💡 ทำกำไรได้ดีเยี่ยม ({t_pl_pct:+.2f}%) พิจารณาล็อกกำไรบางส่วน (Take Profit) หากสัดส่วนในพอร์ตเริ่มใหญ่เกินไป\n"
-
-                        if t_class == "Growth" and t_trend == "ขาลง":
-                            analysis_text += f"- เนื่องจากจัดอยู่ในหมวด Growth แต่เทรนด์ระยะสั้นเป็นขาลง อาจมีความผันผวนสูงในช่วงที่ตลาดปรับฐาน\n"
-                        elif t_class == "Defensive" and t_trend == "ขาขึ้น":
-                            analysis_text += f"- หุ้นหมวด Defensive ตัวนี้ทำหน้าที่พอร์ตได้ดี มีความมั่นคงและให้ผลตอบแทนสอดคล้องกับทิศทางตลาดที่ดี\n"
-
-                        st.markdown(analysis_text)
-
-                # --- 5. Correlation Matrix ---
-                st.markdown("### 5. Correlation Matrix (ความสัมพันธ์ระหว่างหุ้นในพอร์ต)")
-                if len(price_history_map) >= 2:
-                    price_df = pd.DataFrame(price_history_map).dropna()
-                    if not price_df.empty:
-                        returns_df = price_df.pct_change().dropna()
-                        corr_matrix = returns_df.corr()
-
-                        st.dataframe(corr_matrix.style.background_gradient(cmap="coolwarm", axis=None), use_container_width=True)
-
-                        # วิเคราะห์หาคู่ที่สัมพันธ์สูงหรือติดลบ
-                        high_corr_pairs = []
-                        neg_corr_pairs = []
-                        cols = corr_matrix.columns
-                        for i in range(len(cols)):
-                            for j in range(i + 1, len(cols)):
-                                val = corr_matrix.iloc[i, j]
-                                pair_name = f"{cols[i]} & {cols[j]}"
-                                if val > 0.7:
-                                    high_corr_pairs.append((pair_name, val))
-                                elif val < 0:
-                                    neg_corr_pairs.append((pair_name, val))
-
-                        if high_corr_pairs:
-                            st.warning("⚠️ **เตือนคู่หุ้นที่ Correlation สูง (>0.7):** หุ้นเหล่านี้เคลื่อนไหวไปในทิศทางเดียวกันเกือบตลอดเวลา ถือคู่กันอาจทำให้กระจายความเสี่ยงไม่ 
-                            for p, v in high_corr_pairs:
-                                st.write(f"- `{p}`: สัมประสิทธิ์สหสัมพันธ์ = {v:.2f}")
-                        else:
-                            st.success("✅ ไม่พบหุ้นคู่ใดในพอร์ตที่มีความสัมพันธ์สูงเกิน 0.7 (มีการกระจายความเสี่ยงที่ดี)")
-
-                        if neg_corr_pairs:
-                            st.success("💡 **คู่หุ้นที่ Correlation ติดลบ (ช่วย Hedge กันได้ดี):**")
-                            for p, v in neg_corr_pairs:
-                                st.write(f"- `{p}`: สัมประสิทธิ์สหสัมพันธ์ = {v:.2f} (ช่วยลดความผันผวนรวมของพอร์ตได้ดี)")
-                    else:
-                        st.info("ข้อมูลราคาประวัติศาสตร์ไม่เพียงพอสำหรับการคำนวณ Correlation")
-                else:
-                    st.info("กรุณาใส่หุ้นในพอร์ตอย่างน้อย 2 ตัว เพื่อคำนวณ Correlation Matrix")
-
-                # --- 6. กราฟมูลค่าพอร์ตย้อนหลัง 6 เดือน (Equity Curve) ---
-                st.markdown("### 6. ประมาณการกราฟมูลค่าพอร์ตย้อนหลัง 6 เดือน (Equity Curve)")
-                st.caption("หมายเหตุ: กราฟนี้คำนวณโดยสมมติว่าถือจำนวนหุ้นปัจจุบันคงที่ย้อนหลังไป 6 เดือน เพื่อดูภาพรวมความเคลื่อนไหวของพอร์ต ไม่ใช่ผลตอบแทนจริงตามวันที่ซื้อจริง")
-
-                if price_history_map:
-                    combined_price_df = pd.DataFrame(price_history_map).dropna()
-                    if not combined_price_df.empty:
-                        # คำนวณมูลค่าพอร์ตในแต่ละวันย้อนหลังโดยใช้จำนวนหุ้นปัจจุบัน
-                        shares_series = pd.Series({r['Ticker']: r['Shares'] for _, r in df_res.iterrows()})
-                        # กรองเฉพาะหุ้นที่มีข้อมูลครบ
-                        common_tickers = [t for t in shares_series.index if t in combined_price_df.columns]
-                        if common_tickers:
-                            sub_price = combined_price_df[common_tickers]
-                            sub_shares = shares_series[common_tickers]
-                            portfolio_value_series = (sub_price * sub_shares).sum(axis=1)
-
-                            st.line_chart(portfolio_value_series)
-                        else:
-                            st.info("ไม่สามารถรวมข้อมูลกราฟพอร์ตได้เนื่องจากข้อมูลราคาไม่ตรงกัน")
-                    else:
-                        st.info("ไม่พบข้อมูลราคาเพียงพอสำหรับการสร้างกราฟย้อนหลัง")
-                else:
-                    st.info("ยังไม่มีข้อมูลหุ้นในพอร์ตสำหรับสร้างกราฟ")
-
     with tab3:
-        st.subheader("พูดคุยกับ AI ปรมาจารย์ Jim Simons")
-        openai_api_key = st.sidebar.text_input("ใส่ OpenAI API Key (สำหรับเปิดใช้งาน AI Chat)", type="password")
+        st.subheader("🤖 พูดคุยกับ AI ปรมาจารย์ Jim Simons")
+        openai_api_key = st.sidebar.text_input("🔑 ใส่ OpenAI API Key", type="password")
 
         if openai_api_key:
             portfolio_context = "ไม่มีข้อมูลพอร์ตในขณะนี้"
@@ -606,13 +529,13 @@ else:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-            if prompt := st.chat_input("ปรึกษาเรื่องพอร์ต Growth หรือสถิติตลาดกับ Jim Simons..."):
+            if prompt := st.chat_input("ปรึกษาเรื่องพอร์ตหรือสถิติตลาดกับ Jim Simons..."):
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
                     st.markdown(prompt)
 
                 with st.chat_message("assistant"):
-                    with st.spinner("Jim Simons กำลังคำนวณโมเดลคำตอบ..."):
+                    with st.spinner("Jim Simons กำลังประมวลผลโมเดลสถิติ..."):
                         try:
                             client = openai.OpenAI(api_key=openai_api_key)
                             response = client.chat.completions.create(
@@ -625,4 +548,4 @@ else:
                         except Exception as e:
                             st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ OpenAI: {e}")
         else:
-            st.info("กรอก OpenAI API Key ที่แถบซ้ายมือ (Sidebar) เพื่อเปิดใช้งานช่องแชทปรึกษาพอร์ต Growth กับ Jim Simons ครับ")
+            st.info("💡 กรุณากรอก OpenAI API Key ที่แถบด้านซ้ายมือ (Sidebar) เพื่อเปิดใช้งานแชทผู้ช่วย AI")
