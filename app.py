@@ -8,6 +8,7 @@ import os
 from PIL import Image
 import base64
 import io
+from datetime import datetime, timezone
 
 
 # =========================================================
@@ -825,6 +826,58 @@ def pct_text(value):
 
 def metric_or_na(value, suffix=""):
     return "N/A" if value is None else f"{float(value):.2f}{suffix}"
+
+
+# =========================================================
+# MARKET FRESHNESS / QUOTE STATUS
+# =========================================================
+@st.cache_data(ttl=60)
+def get_market_quote_snapshot(ticker_symbol):
+    """ดึงราคาล่าสุดที่ Yahoo Finance เปิดให้เข้าถึง พร้อมเวลาของแท่งล่าสุด
+
+    หมายเหตุ: yfinance ไม่รับประกัน real-time feed ระดับโบรกเกอร์
+    จึงแสดงสถานะเป็น Latest / Delayed แทนการอ้างว่า real-time 100%
+    """
+    try:
+        hist = yf.download(
+            ticker_symbol,
+            period="1d",
+            interval="1m",
+            progress=False,
+            auto_adjust=False,
+            prepost=False
+        )
+        if hist is None or hist.empty:
+            return {"price": None, "timestamp": None, "status": "🔴 ไม่มีข้อมูลล่าสุด", "age_minutes": None}
+
+        close = hist["Close"]
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        close = close.dropna()
+        if close.empty:
+            return {"price": None, "timestamp": None, "status": "🔴 ไม่มีราคาล่าสุด", "age_minutes": None}
+
+        ts = close.index[-1]
+        if getattr(ts, "tzinfo", None) is None:
+            ts = ts.tz_localize("UTC")
+        now = datetime.now(timezone.utc)
+        age_minutes = max(0.0, (now - ts.to_pydatetime().astimezone(timezone.utc)).total_seconds() / 60.0)
+
+        if age_minutes <= 5:
+            status = "🟢 ล่าสุดจากตลาด / Latest (อาจมี Delay)"
+        elif age_minutes <= 30:
+            status = "🟡 ข้อมูลล่าสุดแบบมี Delay / Delayed"
+        else:
+            status = "🔴 ข้อมูลเก่า / Stale"
+
+        return {
+            "price": float(close.iloc[-1]),
+            "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S %Z"),
+            "status": status,
+            "age_minutes": age_minutes,
+        }
+    except Exception as e:
+        return {"price": None, "timestamp": None, "status": f"🔴 ดึงข้อมูลไม่ได้: {e}", "age_minutes": None}
 
 
 # =========================================================
@@ -2153,6 +2206,11 @@ with tab2:
             t_vol = float(r["Volatility (%)"])
             t_sma50 = float(r["SMA 50"])
 
+            # ราคาล่าสุดสำหรับหน้าเจาะรายตัว แยกจากข้อมูล scanner 6 เดือน
+            quote = get_market_quote_snapshot(t_ticker)
+            if quote.get("price") is not None:
+                t_price = quote["price"]
+
             with st.spinner(f"กำลังวิเคราะห์ข้อมูลพื้นฐานของ {t_ticker}..."):
                 analysis = get_detailed_stock_analysis(t_ticker)
 
@@ -2171,11 +2229,23 @@ with tab2:
                 )
 
                 c1, c2, c3, c4, c5 = st.columns(5)
-                c1.metric("ราคาปัจจุบัน", f"${t_price:,.2f}")
+                c1.metric("ราคาล่าสุด", f"${t_price:,.2f}")
                 c2.metric("Quant Score", f"{t_score}/100")
                 c3.metric("1M Momentum", f"{t_mom1m:+.2f}%")
                 c4.metric("1W Momentum", f"{t_mom1w:+.2f}%")
                 c5.metric("Volatility", f"{t_vol:.2f}%")
+
+                # Data freshness
+                st.markdown("#### สถานะข้อมูลราคา (Market Data Freshness)")
+                q1, q2, q3 = st.columns(3)
+                q1.metric("สถานะ", quote.get("status", "N/A"))
+                q2.metric("เวลาข้อมูลล่าสุด", quote.get("timestamp") or "N/A")
+                age = quote.get("age_minutes")
+                q3.metric("อายุข้อมูล", f"{age:.1f} นาที" if age is not None else "N/A")
+                st.caption(
+                    "หมายเหตุ: yfinance/Yahoo Finance ไม่รับประกันข้อมูล Real-time ระดับโบรกเกอร์ "
+                    "สถานะสีเขียวหมายถึงข้อมูลล่าสุดที่เข้าถึงได้ ไม่ได้ยืนยันว่าเป็น Real-time 100%"
+                )
 
                 # 1 Business profile
                 st.markdown("---")
