@@ -304,7 +304,6 @@ def get_company_business_info(ticker_symbol):
         return ticker_symbol, 'N/A', 'N/A', 'ไม่สามารถดึงข้อมูลธุรกิจได้ในขณะนี้'
 
 def get_detailed_future_outlook(sector, industry, ticker):
-    # ฟังก์ชันเสริมสร้างคำอธิบายเชิงลึกแยกตาม Sector เพื่อให้บทวิเคราะห์มีความละเอียดสูงขึ้น
     sector_lower = str(sector).lower()
     if "technology" in sector_lower or "semiconductor" in industry.lower():
         return (
@@ -443,7 +442,6 @@ else:
                 long_name, sector, industry, biz_summary = get_company_business_info(t_ticker)
                 detailed_outlook = get_detailed_future_outlook(sector, industry, t_ticker)
 
-                # ใช้ st.markdown พร้อมกำหนด unsafe_allow_html=True เพื่อป้องกันปัญหาข้อความ HTML แปลกปลอมแสดงผลออกหน้าจอ
                 st.markdown(f"""
                 <div class="article-box">
                     <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ({long_name})</h2>
