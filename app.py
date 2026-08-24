@@ -442,11 +442,13 @@ else:
                 long_name, sector, industry, biz_summary = get_company_business_info(t_ticker)
                 detailed_outlook = get_detailed_future_outlook(sector, industry, t_ticker)
 
+                # จุดที่แก้ไข: เพิ่ม unsafe_allow_html=True ให้ครบถ้วน
+                st.markdown(f"<p><b>ราคาซื้อขายล่าสุด:</b> ${t_price:,.2f} USD</p>", unsafe_allow_html=True)
+
                 st.markdown(f"""
                 <div class="article-box">
                     <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ({long_name})</h2>
                     <p><b>กลุ่มธุรกิจ (Sector):</b> {sector} | <b>อุตสาหกรรม (Industry):</b> {industry}</p>
-                    <p><b>ราคาซื้อขายล่าสุด:</b> ${t_price:,.2f} USD</p>
                     <hr style="border-color: {border_color};">
                     
                     <h3>1. ลักษณะการทำธุรกิจและแนวโน้มในอนาคต (Business Profile & Future Outlook)</h3>
