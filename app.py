@@ -271,14 +271,28 @@ def fetch_stock_data_batched(ticker_list, chunk_size=50):
     return pd.DataFrame(all_rows)
 
 # --- Sidebar Configuration ---
-st.sidebar.header("⚙️ ตั้งค่าการสแกนตลาด")
+st.sidebar.header("⚙️ ตั้งค่าแหล่งข้อมูล & สแกนหุ้น")
 scan_mode = st.sidebar.radio(
     "เลือกแหล่งข้อมูลหุ้น",
     ["รายชื่อคัดสรร (~85 ตัว, เร็ว)", "ทั้งตลาดหุ้นสหรัฐฯ (NASDAQ + NYSE + AMEX)"]
 )
 
+# --- ช่องค้นหาหุ้นเฉพาะตัวเพื่อสแกนด่วน (แสดงเฉพาะในผลสแกนหน้าแรก ไม่เกี่ยวกับพอร์ต) ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔍 ค้นหาหุ้นรายตัวเพื่อสแกนด่วน")
+custom_search_input = st.sidebar.text_input("พิมพ์ Ticker (เช่น NVDA, PLTR, MSFT)", "").upper().strip()
+custom_symbols_to_add = []
+if custom_search_input:
+    raw_symbols = [s.strip() for s in custom_search_input.replace(",", " ").split() if s.strip()]
+    if raw_symbols:
+        custom_symbols_to_add = raw_symbols
+        st.sidebar.success(f"เพิ่มหุ้นในตารางสแกน: {', '.join(custom_symbols_to_add)}")
+
 if scan_mode.startswith("รายชื่อคัดสรร"):
     symbols = get_curated_symbols()
+    if custom_symbols_to_add:
+        symbols = list(set(symbols + custom_symbols_to_add))
+    
     with st.spinner("กำลังประมวลผลโมเดล Quant..."):
         df = fetch_stock_data_and_simons_logic(symbols)
 else:
@@ -300,8 +314,10 @@ else:
     )
     run_scan = st.sidebar.button("🚀 เริ่มสแกนตลาดเต็มรูปแบบ", use_container_width=True)
 
-    if run_scan:
+    if run_scan or custom_symbols_to_add:
         target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
+        if custom_symbols_to_add:
+            target_symbols = list(set(target_symbols + custom_symbols_to_add))
         st.session_state.full_scan_df = fetch_stock_data_batched(target_symbols)
         st.session_state.full_scan_range = (start_offset, start_offset + len(target_symbols))
 
@@ -310,11 +326,11 @@ else:
         rng = st.session_state.get("full_scan_range", (0, len(df)))
         st.sidebar.caption(f"ผลสแกนล่าสุด: ช่วงลำดับ {rng[0]:,}-{rng[1]:,}")
     else:
-        st.info("👈 กรุณาเลือกโหมด 'ทั้งตลาดหุ้นสหรัฐฯ' และกดปุ่ม 'เริ่มสแกนตลาดเต็มรูปแบบ' ที่แถบด้านซ้าย")
+        st.info("👈 กรุณาเลือกโหมด หรือพิมพ์ค้นหาหุ้นที่ต้องการสแกนด่วนที่แถบด้านซ้ายมือ")
         st.stop()
 
 if df.empty:
-    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือลองปรับลดจำนวนหุ้นที่สแกน")
+    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือตรวจสอบ Ticker ที่ค้นหาอีกครั้ง")
 else:
     # --- Tabs Layout ---
     tab1, tab2, tab3 = st.tabs(["📊 สแกนหุ้นตลาด", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
@@ -325,7 +341,7 @@ else:
         with col_f1:
             signal_filter = st.selectbox("กรองตามคำแนะนำโมเดล", ["ทั้งหมด", "ซื้อสะสม (Strong Buy)", "ถือ / เฝ้าสังเกต (Hold)", "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"])
         with col_f2:
-            search_query = st.text_input("🔍 ค้นหา Ticker หุ้นเจาะจง", "").upper()
+            search_query = st.text_input("🔍 ค้นหา Ticker หุ้นเจาะจงในตารางผลลัพธ์", "").upper()
 
         df_filtered = df if signal_filter == "ทั้งหมด" else df[df['Simons Signal'] == signal_filter]
         if search_query:
@@ -479,13 +495,12 @@ else:
                 col_m2.metric("📈 มูลค่าพอร์ตปัจจุบัน", f"${total_current:,.2f}")
                 col_m3.metric("📊 กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
 
-                # --- ส่วนเพิ่มใหม่: บทสรุปการปรับพอร์ต (Action Plan: ซื้อเพิ่ม / ขายออก) ---
+                # --- ส่วนสรุปการปรับพอร์ตเฉพาะหุ้นในพอร์ตเท่านั้น ---
                 st.markdown("---")
                 st.subheader("💡 บทสรุปแผนการปรับพอร์ต (Quantitative Action Summary)")
                 
                 buy_candidates = df_res[df_res['Score'] >= 70]
                 sell_candidates = df_res[df_res['Score'] < 45]
-                hold_candidates = df_res[(df_res['Score'] >= 45) & (df_res['Score'] < 70)]
 
                 col_act1, col_act2 = st.columns(2)
                 with col_act1:
