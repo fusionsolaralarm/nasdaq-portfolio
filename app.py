@@ -5,12 +5,12 @@ import numpy as np
 import openai
 
 st.set_page_config(
-    page_title="Simon Screener & Portfolio AI",
+    page_title="Simon Screener & Ultimate Portfolio AI",
     layout="wide"
 )
 
-st.title("Simon Screener - Quant & Portfolio AI Advisor")
-st.markdown("ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวในสไตล์ Jim Simons (Renaissance Technologies)")
+st.title("Simon Screener - Ultimate Quant & Portfolio AI Advisor")
+st.markdown("ระบบสแกนหุ้นสหรัฐฯ วิเคราะห์ความเสี่ยงพอร์ต และผู้ช่วย AI ระดับเฮดจ์ฟันด์ (Renaissance Technologies)")
 
 @st.cache_data
 def get_us_stock_symbols():
@@ -89,13 +89,13 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             
     return pd.DataFrame(data_list)
 
-with st.spinner("กำลังดึงราคาล่าสุดและคำนวณโมเดลตลาดสหรัฐฯ..."):
+with st.spinner("กำลังดึงราคาล่าสุดและคำนวณโมเดลเชิงปริมาณตลาดสหรัฐฯ..."):
     df = fetch_stock_data_and_simons_logic(symbols)
 
 if df.empty:
     st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บใหม่อีกครั้ง")
 else:
-    tab1, tab2, tab3 = st.tabs(["สแกนหุ้นตลาด", "พอร์ตของฉัน", "คุยกับ AI Jim Simons"])
+    tab1, tab2, tab3 = st.tabs(["สแกนหุ้นตลาด", "พอร์ตของฉัน (ขั้นสูง)", "คุยกับ AI Jim Simons"])
     
     with tab1:
         st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ")
@@ -120,13 +120,14 @@ else:
         )
 
     with tab2:
-        st.subheader("พอร์ตการลงทุนของคุณ (My Portfolio Analysis)")
-        st.markdown("กรอกข้อมูลหุ้น จำนวนหุ้น และราคาต้นทุนที่คุณซื้อมา ระบบจะคำนวณมูลค่าปัจจุบัน กำไร/ขาดทุน (%) และสัดส่วนน้ำหนักพอร์ต (Allocation) ให้ทันที")
+        st.subheader("พอร์ตการลงทุนของคุณและการวิเคราะห์ความเสี่ยงเชิงปริมาณ")
+        st.markdown("กรอกข้อมูลหุ้น จำนวนหุ้น และราคาต้นทุน ระบบจะคำนวณกำไร/ขาดทุน สัดส่วนน้ำหนักพอร์ต และประเมินความเสี่ยงรวมให้อัตโนมัติ")
         
         if "portfolio_input" not in st.session_state:
             st.session_state.portfolio_input = pd.DataFrame([
                 {"Ticker": "AAPL", "Shares": 10.0, "Buy Price (USD)": 170.0},
-                {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0}
+                {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0},
+                {"Ticker": "NVDA", "Shares": 8.0, "Buy Price (USD)": 110.0}
             ])
             
         edited_portfolio = st.data_editor(st.session_state.portfolio_input, num_rows="dynamic", use_container_width=True)
@@ -144,12 +145,14 @@ else:
                 current_price = 0.0
                 signal = "ถือประเมินสถานะ"
                 score = 50
+                volatility = 30.0
                 
                 match_row = df[df['Ticker'] == ticker]
                 if not match_row.empty:
                     current_price = float(match_row.iloc[0]['Price (USD)'])
                     signal = match_row.iloc[0]['Simons Signal']
                     score = int(match_row.iloc[0]['Score'])
+                    volatility = float(match_row.iloc[0]['Volatility (%)'])
                 else:
                     try:
                         hist = yf.download(ticker, period="1mo", progress=False)
@@ -172,6 +175,7 @@ else:
                     'Current Value ($)': current_value,
                     'Profit/Loss ($)': profit_loss_usd,
                     'Profit/Loss (%)': profit_loss_pct,
+                    'Volatility (%)': volatility,
                     'Simons Signal': signal,
                     'Score': score
                 })
@@ -184,19 +188,22 @@ else:
                 total_pl = total_current - total_invested
                 total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
                 
-                # คำนวณสัดส่วนน้ำหนักพอร์ต (%)
                 if total_current > 0:
                     df_res['Allocation (%)'] = (df_res['Current Value ($)'] / total_current) * 100
                 else:
                     df_res['Allocation (%)'] = 0.0
                 
+                # คำนวณความเสี่ยงรวมของพอร์ต (Weighted Portfolio Volatility)
+                weighted_volatility = (df_res['Volatility (%)'] * (df_res['Allocation (%)'] / 100)).sum()
+                
                 st.markdown("---")
-                col_m1, col_m2, col_m3 = st.columns(3)
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 col_m1.metric("มูลค่าลงทุนรวม", f"${total_invested:,.2f}")
                 col_m2.metric("มูลค่าปัจจุบันรวม", f"${total_current:,.2f}")
                 col_m3.metric("กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
+                col_m4.metric("ความเสี่ยงรวมพอร์ต (Vol)", f"{weighted_volatility:.2f}%")
                 
-                st.markdown("### รายละเอียดพอร์ตและผลตอบแทนรายตัว")
+                st.markdown("### สัดส่วนและผลตอบแทนรายตัวในพอร์ต")
                 st.dataframe(
                     df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Allocation (%)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Simons Signal', 'Score']],
                     column_config={
@@ -211,15 +218,34 @@ else:
                     hide_index=True
                 )
                 
-                st.markdown("### คำแนะนำเชิงกลยุทธ์รายตัว")
+                st.markdown("### กราฟแสดงสัดส่วนเงินลงทุนในพอร์ต (Allocation)")
+                chart_data = df_res.set_index('Ticker')['Current Value ($)']
+                st.bar_chart(chart_data)
+                
+                st.markdown("### คำแนะนำเชิงกลยุทธ์และจัดระเบียบพอร์ต (Portfolio Rebalancing)")
                 for _, r in df_res.iterrows():
                     pl_text = f"กำไร {r['Profit/Loss (%)']:.2f}%" if r['Profit/Loss (%)'] >= 0 else f"ขาดทุน {r['Profit/Loss (%)']:.2f}%"
+                    
+                    # คำแนะนำตามหลักการน้ำหนักและการกระจายความเสี่ยง
+                    alloc_advice = ""
+                    if r['Allocation (%)'] > 40:
+                        alloc_advice = " คำเตือน: หุ้นตัวนี้มีสัดส่วนกระจุกตัวสูงเกิน 40% ของพอร์ต ควรกระจายความเสี่ยงลดน้ำหนักลง"
+                    
                     if "ซื้อสะสม" in r['Simons Signal']:
-                        st.success(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สถานะพอร์ตแข็งแกร่ง แนะนำถือต่อหรือทยอยเพิ่มทุน")
+                        st.info(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | น้ำหนัก: {r['Allocation (%)']:.2f}% | {pl_text}): สภาพพอร์ตแข็งแกร่ง แนะนำถือต่อหรือทยอยเพิ่มทุน{alloc_advice}")
                     elif "ถือ" in r['Simons Signal']:
-                        st.warning(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณอยู่ในโซนพักตัว แนะนำถือรอดูสถานะต่อไป")
+                        st.warning(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | น้ำหนัก: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณอยู่ในโซนพักตัว แนะนำถือรอดูสถานะต่อไป{alloc_advice}")
                     else:
-                        st.error(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณทางสถิติอ่อนแอ แนะนำพิจารณาขายทำกำไรหรือตัดขาดทุน")
+                        st.error(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | น้ำหนัก: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณทางสถิติอ่อนแอและความเสี่ยงสูง แนะนำพิจารณาขายทำกำไรหรือตัดขาดทุน")
+                
+                # ปุ่มดาวน์โหลดสรุปพอร์ตเป็น CSV
+                csv_data = df_res.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="ดาวน์โหลดรายงานสรุปพอร์ต (CSV)",
+                    data=csv_data,
+                    file_name="my_quant_portfolio_report.csv",
+                    mime="text/csv"
+                )
 
     with tab3:
         st.subheader("พูดคุยกับ AI ปรมาจารย์ Jim Simons")
@@ -228,7 +254,7 @@ else:
         if openai_api_key:
             if "messages" not in st.session_state:
                 st.session_state.messages = [
-                    {"role": "system", "content": "คุณคือ Jim Simons ปรมาจารย์กองทุน Quantitative ระดับโลก (Renaissance Technologies) คอยให้คำแนะนำเรื่องพอร์ตหุ้น สถิติตลาด และการลงทุนด้วยตรรกะคณิตศาสตร์อย่างเป็นทางการ ห้ามใช้อีโมจิเด็ดขาด"}
+                    {"role": "system", "content": "คุณคือ Jim Simons ปรมาจารย์กองทุน Quantitative ระดับโลก (Renaissance Technologies) คอยให้คำแนะนำเรื่องพอร์ตหุ้น การบริหารความเสี่ยง สถิติตลาด และการลงทุนด้วยตรรกะคณิตศาสตร์อย่างเป็นทางการ ห้ามใช้อีโมจิเด็ดขาด"}
                 ]
                 
             for message in st.session_state.messages:
