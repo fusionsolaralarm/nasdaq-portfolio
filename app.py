@@ -66,6 +66,22 @@ st.markdown(f"""
     .article-box h2, .article-box h3 {{
         color: {heading_color};
     }}
+    .verdict-box-yes {{
+        background-color: rgba(35, 134, 54, 0.15);
+        border: 1px solid #238636;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 15px;
+        color: {text_color};
+    }}
+    .verdict-box-no {{
+        background-color: rgba(218, 54, 51, 0.15);
+        border: 1px solid #da3633;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 15px;
+        color: {text_color};
+    }}
     .action-box-buy {{
         background-color: rgba(35, 134, 54, 0.15);
         border: 1px solid #238636;
@@ -290,17 +306,8 @@ scan_mode = st.sidebar.radio(
     ["รายชื่อคัดสรร (~85 ตัว, เร็ว)", "ทั้งตลาดหุ้นสหรัฐฯ (NASDAQ + NYSE + AMEX)"]
 )
 
-# --- ช่องค้นหาหุ้นรายตัวเพื่อสแกนและทำบทความวิเคราะห์เจาะจง ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔍 วิเคราะห์หุ้นรายตัว (Deep Dive)")
-custom_deep_dive_ticker = st.sidebar.text_input("พิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์", "").upper().strip()
-
 if scan_mode.startswith("รายชื่อคัดสรร"):
     symbols = get_curated_symbols()
-    # หากผู้ใช้กรอกหุ้นเจาะจง ให้แถมเข้าไปสแกนในตารางหลักด้วย
-    if custom_deep_dive_ticker and custom_deep_dive_ticker not in symbols:
-        symbols.append(custom_deep_dive_ticker)
-
     with st.spinner("กำลังประมวลผลโมเดล Quant..."):
         df = fetch_stock_data_and_simons_logic(symbols)
 else:
@@ -322,11 +329,8 @@ else:
     )
     run_scan = st.sidebar.button("🚀 เริ่มสแกนตลาดเต็มรูปแบบ", use_container_width=True)
 
-    target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
-    if custom_deep_dive_ticker and custom_deep_dive_ticker not in target_symbols:
-        target_symbols.append(custom_deep_dive_ticker)
-
-    if run_scan or custom_deep_dive_ticker:
+    if run_scan:
+        target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
         st.session_state.full_scan_df = fetch_stock_data_batched(target_symbols)
         st.session_state.full_scan_range = (start_offset, start_offset + len(target_symbols))
 
@@ -335,11 +339,11 @@ else:
         rng = st.session_state.get("full_scan_range", (0, len(df)))
         st.sidebar.caption(f"ผลสแกนล่าสุด: ช่วงลำดับ {rng[0]:,}-{rng[1]:,}")
     else:
-        st.info("👈 กรุณาเลือกโหมด หรือพิมพ์ Ticker หุ้นที่ต้องการสแกนและวิเคราะห์รายตัวที่แถบด้านซ้ายมือ")
+        st.info("👈 กรุณาเลือกโหมดและคลิกเริ่มสแกนที่แถบด้านซ้ายมือเพื่อเริ่มต้นใช้งานระบบ")
         st.stop()
 
 if df.empty:
-    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือตรวจสอบ Ticker ที่ค้นหาอีกครั้ง")
+    st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือตรวจสอบการเชื่อมต่อ")
 else:
     # --- Tabs Layout ---
     tab1, tab2, tab3, tab4 = st.tabs(["📊 สแกนหุ้นตลาด", "📝 บทความวิเคราะห์หุ้นรายตัว", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
@@ -369,30 +373,32 @@ else:
             hide_index=True
         )
 
-    with tab4: # ย้าย tab มาไว้ท้ายสุดเพื่อให้เป็นระเบียบ แต่เก็บลำดับการแสดงผลถูกต้อง
-        pass
-
     with tab2:
-        st.subheader("📝 บทความวิเคราะห์หุ้นรายตัวเชิงลึก (Quantitative Deep Dive Article)")
+        st.subheader("📝 บทความวิเคราะห์หุ้นรายตัวเชิงลึก & คำแนะนำการซื้อเข้าพอร์ต")
+        st.markdown("พิมพ์ชื่อย่อหุ้น (Ticker) ที่คุณสนใจเพื่อดูบทความวิเคราะห์เชิงลึกและประเมินว่า **ควรซื้อมาเติมในพอร์ตหรือไม่** ทันที:")
         
-        if not custom_deep_dive_ticker:
-            st.info("💡 กรุณาพิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์ในช่อง **'วิเคราะห์หุ้นรายตัว (Deep Dive)'** ที่แถบด้านซ้ายมือ เพื่อสร้างบทความวิเคราะห์")
+        # ช่องค้นหาหุ้นรายตัวโดยตรงภายในแท็บนี้
+        inner_search_ticker = st.text_input("🔍 พิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์เจาะจง (เช่น NVDA, TSLA, AAPL, PLTR)", "NVDA").upper().strip()
+
+        if not inner_search_ticker:
+            st.info("กรุณากรอก Ticker หุ้นที่ต้องการวิเคราะห์")
         else:
-            match_dd = df[df['Ticker'] == custom_deep_dive_ticker]
+            match_dd = df[df['Ticker'] == inner_search_ticker]
             if match_dd.empty:
-                # ลองดึงข้อมูลแยกเฉพาะตัวกรณีที่ไม่อยู่ในลิสต์สแกนหลัก
+                # กรณีไม่อยู่ในตารางหลัก ให้ลองดึงข้อมูลสดแยกต่างหาก
                 try:
-                    hist_dd = yf.download(custom_deep_dive_ticker, period="6mo", progress=False)
-                    if not hist_dd.empty:
-                        cs_dd = hist_dd['Close'].iloc[:, 0] if isinstance(hist_dd.columns, pd.MultiIndex) else hist_dd['Close']
-                        row_dd = compute_simons_row(custom_deep_dive_ticker, cs_dd)
-                        if row_dd:
-                            match_dd = pd.DataFrame([row_dd])
+                    with st.spinner(f"กำลังดึงข้อมูลสถิติของ {inner_search_ticker}..."):
+                        hist_dd = yf.download(inner_search_ticker, period="6mo", progress=False)
+                        if not hist_dd.empty:
+                            cs_dd = hist_dd['Close'].iloc[:, 0] if isinstance(hist_dd.columns, pd.MultiIndex) else hist_dd['Close']
+                            row_dd = compute_simons_row(inner_search_ticker, cs_dd)
+                            if row_dd:
+                                match_dd = pd.DataFrame([row_dd])
                 except Exception:
                     pass
 
             if match_dd.empty:
-                st.error(f"ไม่พบข้อมูลสำหรับ Ticker: {custom_deep_dive_ticker} กรุณาตรวจสอบความถูกต้องของชื่อหุ้นอีกครั้ง")
+                st.error(f"ไม่พบข้อมูลสำหรับ Ticker: {inner_search_ticker} กรุณาตรวจสอบความถูกต้องของชื่อหุ้นอีกครั้ง")
             else:
                 r_dd = match_dd.iloc[0]
                 t_ticker = r_dd['Ticker']
@@ -405,7 +411,7 @@ else:
                 t_vol = r_dd['Volatility (%)']
                 t_sma50 = r_dd['SMA 50']
 
-                # สร้างบทความวิเคราะห์อัตโนมัติสไตล์ Quant
+                # สร้างบทความวิเคราะห์สไตล์ Quant
                 st.markdown(f"""
                 <div class="article-box">
                     <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ประจำรอบการประเมิน</h2>
@@ -423,12 +429,36 @@ else:
                     </ul>
 
                     <h3>3. การประเมินความเสี่ยงและความผันผวน (Risk & Volatility Profile)</h3>
-                    <p>ค่าความผันผวนรายปี (Annualized Volatility) ของ <b>{t_ticker}</b> อยู่ที่ระดับ <b>{t_vol:.2f}%</b> หากค่าความผันผวนสูงเกินกรอบจำกัด โมเดลจะปรับลดน้ำหนักความน่าสนใจลงโดยอัตโนมัติเพื่อป้องกันความเสี่ยงจากความผิดพลาดของราคา (Tail Risk) ตามหลักการลงทุนของ Renaissance Technologies</p>
-
-                    <h3>4. ข้อเสนอแนะเชิงกลยุทธ์ (Algorithmic Action Plan)</h3>
-                    <p>จากผลการรันอัลกอริทึม หากท่านสนใจลงทุนในหลักทรัพย์ตัวนี้ ควรพิจารณาจากขนาดของพอร์ต (Position Sizing) และวินิจฉัยตามสัญญาณ <b>{t_signal}</b> ควบคู่กับการตั้งจุดบริหารความเสี่ยง (Stop Loss) อย่างเคร่งครัด ห้ามใช้อารมณ์ความรู้สึกในการตัดสินใจซื้อขายเด็ดขาด</p>
+                    <p>ค่าความผันผวนรายปี (Annualized Volatility) ของ <b>{t_ticker}</b> อยู่ที่ระดับ <b>{t_vol:.2f}%</b> หากค่าความผันผวนสูงเกินกรอบจำกัด โมเดลจะปรับลดน้ำหนักความสนใจลงโดยอัตโนมัติเพื่อป้องกันความเสี่ยงจากความผิดพลาดของราคา (Tail Risk) ตามหลักการลงทุนของ Renaissance Technologies</p>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # ส่วนให้คำตอบชัดเจนว่าควรซื้อมาเติมในพอร์ตไหม
+                st.markdown("### 🎯 มุมมองการลงทุน: ควรซื้อมาเติมในพอร์ตหรือไม่?")
+                if t_score >= 70:
+                    st.markdown(f"""
+                    <div class="verdict-box-yes">
+                        <b>🟢 ควรพิจารณาซื้อมาเติมในพอร์ต (Strong Buy Recommendation)</b><br>
+                        • <b>เหตุผลทางสถิติ:</b> หุ้นตัวนี้ได้คะแนนความแข็งแกร่งสูงถึง <b>{t_score}/100 คะแนน</b> ซึ่งผ่านเกณฑ์ความน่าจะเป็นเชิงบวกของโมเดล<br>
+                        • <b>โครงสร้างราคา:</b> อยู่เหนือเส้น SMA 50 และมีโมเมนตัมขาขึ้นที่แข็งแกร่ง เหมาะแก่การเพิ่มน้ำหนักลงทุน (Position Sizing) เพื่อสร้างความเติบโต (Growth) ให้แก่พอร์ตของคุณ
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif t_score >= 45:
+                    st.markdown(f"""
+                    <div class="article-box" style="border-color: #d29922; background-color: rgba(210, 153, 34, 0.1);">
+                        <b>🟡 แนะนำให้รอดูสถานะ หรือยังไม่รีบซื้อเพิ่ม (Hold / Wait & See)</b><br>
+                        • <b>เหตุผลทางสถิติ:</b> คะแนนความแข็งแกร่งอยู่ที่ <b>{t_score}/100 คะแนน</b> ซึ่งอยู่ในเกณฑ์ปานกลาง สัญญาณโมเมนตัมยังไม่ชัดเจนพอที่จะเบทวงเงินก้อนใหญ่<br>
+                        • <b>คำแนะนำ:</b> หากมีหุ้นนี้อยู่แล้วสามารถถือต่อได้ แต่หากจะซื้อเพิ่มแนะนำให้รอจังหวะย่อตัวเข้าใกล้เส้นแนวรับหรือรอให้คะแนนขยับขึ้นทะลุ 70 คะแนนก่อน
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="verdict-box-no">
+                        <b>🔴 ไม่ควรซื้อมาเติมในพอร์ตในเวลานี้ (Avoid / High Risk)</b><br>
+                        • <b>เหตุผลทางสถิติ:</b> คะแนนความแข็งแกร่งต่ำเพียง <b>{t_score}/100 คะแนน</b> โครงสร้างราคาหลุดเส้นค่าเฉลี่ยหรือมีความผันผวนสูงเกินไปตามเกณฑ์ความเสี่ยง<br>
+                        • <b>คำแนะนำ:</b> หลีกเลี่ยงการเข้าซื้อสะสมเพิ่มเติมเพื่อป้องกันความเสี่ยงขาลง (Downside Risk) ตามวินัยของระบบ Quant
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 # กราฟราคาชั่วคราวประกอบบทความ
                 try:
