@@ -5,6 +5,9 @@ import numpy as np
 import openai
 import json
 import os
+from PIL import Image
+import base64
+import io
 
 # --- ตั้งค่าหน้าเว็บ ---
 st.set_page_config(
@@ -45,14 +48,6 @@ st.markdown(f"""
         margin-bottom: 15px;
         color: {text_color};
     }}
-    .stock-card h3 {{
-        color: {heading_color};
-        margin-top: 0;
-    }}
-    .stock-card p, .stock-card li {{
-        color: {text_color};
-        font-size: 15px;
-    }}
     .article-box {{
         background-color: {card_bg};
         padding: 25px;
@@ -62,9 +57,6 @@ st.markdown(f"""
         margin-bottom: 20px;
         color: {text_color};
         line-height: 1.6;
-    }}
-    .article-box h2, .article-box h3 {{
-        color: {heading_color};
     }}
     .verdict-box-yes {{
         background-color: rgba(35, 134, 54, 0.15);
@@ -299,6 +291,19 @@ def fetch_stock_data_batched(ticker_list, chunk_size=50):
     progress_bar.empty()
     return pd.DataFrame(all_rows)
 
+# ฟังก์ชันดึงข้อมูลธุรกิจผ่าน yfinance
+def get_company_business_info(ticker_symbol):
+    try:
+        t = yf.Ticker(ticker_symbol)
+        info = t.info
+        long_name = info.get('longName', ticker_symbol)
+        sector = info.get('sector', 'N/A')
+        industry = info.get('industry', 'N/A')
+        summary = info.get('longBusinessSummary', 'ไม่มีข้อมูลสรุปธุรกิจภาษาอังกฤษจากระบบ')
+        return long_name, sector, industry, summary
+    except Exception:
+        return ticker_symbol, 'N/A', 'N/A', 'ไม่สามารถดึงข้อมูลธุรกิจได้ในขณะนี้'
+
 # --- Sidebar Configuration ---
 st.sidebar.header("⚙️ ตั้งค่าแหล่งข้อมูล & สแกนหุ้น")
 scan_mode = st.sidebar.radio(
@@ -346,7 +351,7 @@ if df.empty:
     st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือตรวจสอบการเชื่อมต่อ")
 else:
     # --- Tabs Layout ---
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 สแกนหุ้นตลาด", "📝 บทความวิเคราะห์หุ้นรายตัว", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 สแกนหุ้นตลาด", "📝 บทความวิเคราะห์หุ้นรายตัว", "💼 พอร์ตของฉัน & ใบเสร็จซื้อขาย", "🤖 คุยกับ AI Jim Simons"])
 
     with tab1:
         st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ (Quantitative Screener)")
@@ -374,10 +379,9 @@ else:
         )
 
     with tab2:
-        st.subheader("📝 บทความวิเคราะห์หุ้นรายตัวเชิงลึก & คำแนะนำการซื้อเข้าพอร์ต")
-        st.markdown("พิมพ์ชื่อย่อหุ้น (Ticker) ที่คุณสนใจเพื่อดูบทความวิเคราะห์เชิงลึกและประเมินว่า **ควรซื้อมาเติมในพอร์ตหรือไม่** ทันที:")
+        st.subheader("📝 บทความวิเคราะห์หุ้นรายตัวเชิงลึก & แนวโน้มธุรกิจ")
+        st.markdown("พิมพ์ชื่อย่อหุ้น (Ticker) เพื่อดูภาพรวมธุรกิจ แนวโน้มอนาคต และคำแนะนำการซื้อเข้าพอร์ต:")
         
-        # ช่องค้นหาหุ้นรายตัวโดยตรงภายในแท็บนี้
         inner_search_ticker = st.text_input("🔍 พิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์เจาะจง (เช่น NVDA, TSLA, AAPL, PLTR)", "NVDA").upper().strip()
 
         if not inner_search_ticker:
@@ -385,7 +389,6 @@ else:
         else:
             match_dd = df[df['Ticker'] == inner_search_ticker]
             if match_dd.empty:
-                # กรณีไม่อยู่ในตารางหลัก ให้ลองดึงข้อมูลสดแยกต่างหาก
                 try:
                     with st.spinner(f"กำลังดึงข้อมูลสถิติของ {inner_search_ticker}..."):
                         hist_dd = yf.download(inner_search_ticker, period="6mo", progress=False)
@@ -411,56 +414,58 @@ else:
                 t_vol = r_dd['Volatility (%)']
                 t_sma50 = r_dd['SMA 50']
 
-                # สร้างบทความวิเคราะห์สไตล์ Quant
+                # ดึงข้อมูลธุรกิจจริง
+                long_name, sector, industry, biz_summary = get_company_business_info(t_ticker)
+
                 st.markdown(f"""
                 <div class="article-box">
-                    <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ประจำรอบการประเมิน</h2>
-                    <p><b>วันที่ออกรายงาน:</b> Real-time Quantitative Scan | <b>ราคาซื้อขายล่าสุด:</b> ${t_price:,.2f} USD</p>
+                    <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ({long_name})</h2>
+                    <p><b>กลุ่มธุรกิจ (Sector):</b> {sector} | <b>อุตสาหกรรม (Industry):</b> {industry}</p>
+                    <p><b>ราคาซื้อขายล่าสุด:</b> ${t_price:,.2f} USD</p>
                     <hr style="border-color: {border_color};">
                     
-                    <h3>1. สรุปภาพรวมคะแนนและความน่าจะเป็น (Quantitative Score & Verdict)</h3>
-                    <p>โมเดลเชิงปริมาณประเมินความแข็งแกร่งของหลักทรัพย์ <b>{t_ticker}</b> ได้คะแนนรวมอยู่ที่ <b>{t_score}/100 คะแนน</b> โดยให้คำแนะนำสถานะทางสถิติเป็น: <span style="color: {heading_color}; font-weight: bold;">{t_signal}</span> โครงสร้างราคาปัจจุบันเคลื่อนไหวอยู่ในภาวะ <b>{t_trend}</b> สะท้อนถึงพฤติกรรมราคาที่ขับเคลื่อนด้วยความน่าจะเป็นทางสถิติในช่วง 1-3 เดือนที่ผ่านมา</p>
+                    <h3>1. ลักษณะการทำธุรกิจและแนวโน้มในอนาคต (Business Profile & Future Outlook)</h3>
+                    <p><b>การประกอบธุรกิจ:</b> {biz_summary}</p>
+                    <p><b>แนวโน้มธุรกิจในอนาคต:</b> จากโครงสร้างอุตสาหกรรมปัจจุบัน บริษัทนี้มีปัจจัยขับเคลื่อนจากกระแสเทคโนโลยีและอุปสงค์ในตลาดโลก หากพิจารณาตามโมเดลเชิงปริมาณ บริษัทที่มีพื้นฐานในกลุ่ม {sector} มักจะมีความอ่อนไหวต่อวัฏจักรเศรษฐกิจมหภาค แต่หากความสามารถในการทำกำไรยังเติบโต จะส่งผลให้โมเมนตัมราคามีความน่าสนใจในระยะกลางถึงยาว</p>
 
-                    <h3>2. การวิเคราะห์โมเมนตัมและเส้นค่าเฉลี่ย (Momentum & Trend Structure)</h3>
+                    <h3>2. สรุปภาพรวมคะแนนและความน่าจะเป็น (Quantitative Score & Verdict)</h3>
+                    <p>โมเดลเชิงปริมาณประเมินความแข็งแกร่งของหลักทรัพย์ <b>{t_ticker}</b> ได้คะแนนรวมอยู่ที่ <b>{t_score}/100 คะแนน</b> โดยให้คำแนะนำสถานะทางสถิติเป็น: <b style="color: {heading_color};">{t_signal}</b> โครงสร้างราคาปัจจุบันเคลื่อนไหวอยู่ในภาวะ <b>{t_trend}</b></p>
+
+                    <h3>3. การวิเคราะห์โมเมนตัมและเส้นค่าเฉลี่ย (Momentum & Trend Structure)</h3>
                     <ul>
-                        <li><b>โมเมนตัมระยะ 1 เดือน (1M Momentum):</b> เปลี่ยนแปลงอยู่ที่ <b>{t_mom1m:+.2f}%</b> ชี้ให้เห็นถึงแรงขับเคลื่อนระยะกลางว่าสอดคล้องกับทิศทางหลักของตลาดหรือไม่</li>
-                        <li><b>โมเมนตัมระยะ 1 สัปดาห์ (1W Momentum):</b> อยู่ที่ <b>{t_mom1w:+.2f}%</b> บ่งบอกถึงความตื่นตัวของเม็ดเงินระยะสั้น</li>
-                        <li><b>เส้นค่าเฉลี่ย 50 วัน (SMA 50):</b> ปัจจุบันอยู่ที่ระดับ <b>${t_sma50:,.2f} USD</b> เปรียบเทียบกับราคาปัจจุบัน (${t_price:,.2f} USD) พบว่าราคาอยู่{ "เหนือ" if t_price > t_sma50 else "ต่ำกว่า" }เส้นแนวรับสำคัญทางสถิตินี้ ซึ่งเป็นเกณฑ์ตัดสินใจหลักในการถือครองความเสี่ยง</li>
+                        <li><b>โมเมนตัมระยะ 1 เดือน (1M Momentum):</b> <b>{t_mom1m:+.2f}%</b></li>
+                        <li><b>โมเมนตัมระยะ 1 สัปดาห์ (1W Momentum):</b> <b>{t_mom1w:+.2f}%</b></li>
+                        <li><b>เส้นค่าเฉลี่ย 50 วัน (SMA 50):</b> <b>${t_sma50:,.2f} USD</b> (ราคาปัจจุบันอยู่{ "เหนือ" if t_price > t_sma50 else "ต่ำกว่า" }เส้น SMA 50)</li>
                     </ul>
 
-                    <h3>3. การประเมินความเสี่ยงและความผันผวน (Risk & Volatility Profile)</h3>
-                    <p>ค่าความผันผวนรายปี (Annualized Volatility) ของ <b>{t_ticker}</b> อยู่ที่ระดับ <b>{t_vol:.2f}%</b> หากค่าความผันผวนสูงเกินกรอบจำกัด โมเดลจะปรับลดน้ำหนักความสนใจลงโดยอัตโนมัติเพื่อป้องกันความเสี่ยงจากความผิดพลาดของราคา (Tail Risk) ตามหลักการลงทุนของ Renaissance Technologies</p>
+                    <h3>4. การประเมินความเสี่ยงและความผันผวน (Risk & Volatility Profile)</h3>
+                    <p>ค่าความผันผวนรายปี (Annualized Volatility) อยู่ที่ระดับ <b>{t_vol:.2f}%</b> ควบคุมความเสี่ยงตามหลักการของโมเดล Quant</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-                # ส่วนให้คำตอบชัดเจนว่าควรซื้อมาเติมในพอร์ตไหม
                 st.markdown("### 🎯 มุมมองการลงทุน: ควรซื้อมาเติมในพอร์ตหรือไม่?")
                 if t_score >= 70:
                     st.markdown(f"""
                     <div class="verdict-box-yes">
                         <b>🟢 ควรพิจารณาซื้อมาเติมในพอร์ต (Strong Buy Recommendation)</b><br>
-                        • <b>เหตุผลทางสถิติ:</b> หุ้นตัวนี้ได้คะแนนความแข็งแกร่งสูงถึง <b>{t_score}/100 คะแนน</b> ซึ่งผ่านเกณฑ์ความน่าจะเป็นเชิงบวกของโมเดล<br>
-                        • <b>โครงสร้างราคา:</b> อยู่เหนือเส้น SMA 50 และมีโมเมนตัมขาขึ้นที่แข็งแกร่ง เหมาะแก่การเพิ่มน้ำหนักลงทุน (Position Sizing) เพื่อสร้างความเติบโต (Growth) ให้แก่พอร์ตของคุณ
+                        • <b>เหตุผล:</b> คะแนนความแข็งแกร่งสูงถึง <b>{t_score}/100 คะแนน</b> แนวโน้มธุรกิจและโมเมนตัมราคาสอดคล้องเชิงบวก เหมาะแก่การเพิ่มน้ำหนักลงทุน (Growth)
                     </div>
                     """, unsafe_allow_html=True)
                 elif t_score >= 45:
                     st.markdown(f"""
                     <div class="article-box" style="border-color: #d29922; background-color: rgba(210, 153, 34, 0.1);">
                         <b>🟡 แนะนำให้รอดูสถานะ หรือยังไม่รีบซื้อเพิ่ม (Hold / Wait & See)</b><br>
-                        • <b>เหตุผลทางสถิติ:</b> คะแนนความแข็งแกร่งอยู่ที่ <b>{t_score}/100 คะแนน</b> ซึ่งอยู่ในเกณฑ์ปานกลาง สัญญาณโมเมนตัมยังไม่ชัดเจนพอที่จะเบทวงเงินก้อนใหญ่<br>
-                        • <b>คำแนะนำ:</b> หากมีหุ้นนี้อยู่แล้วสามารถถือต่อได้ แต่หากจะซื้อเพิ่มแนะนำให้รอจังหวะย่อตัวเข้าใกล้เส้นแนวรับหรือรอให้คะแนนขยับขึ้นทะลุ 70 คะแนนก่อน
+                        • <b>เหตุผล:</b> คะแนนอยู่ที่ <b>{t_score}/100 คะแนน</b> ควรถือต่อถ้ามีของเดิม แต่หากจะซื้อเพิ่มควรรอจังหวะย่อตัว
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
                     <div class="verdict-box-no">
                         <b>🔴 ไม่ควรซื้อมาเติมในพอร์ตในเวลานี้ (Avoid / High Risk)</b><br>
-                        • <b>เหตุผลทางสถิติ:</b> คะแนนความแข็งแกร่งต่ำเพียง <b>{t_score}/100 คะแนน</b> โครงสร้างราคาหลุดเส้นค่าเฉลี่ยหรือมีความผันผวนสูงเกินไปตามเกณฑ์ความเสี่ยง<br>
-                        • <b>คำแนะนำ:</b> หลีกเลี่ยงการเข้าซื้อสะสมเพิ่มเติมเพื่อป้องกันความเสี่ยงขาลง (Downside Risk) ตามวินัยของระบบ Quant
+                        • <b>เหตุผล:</b> คะแนนต่ำเพียง <b>{t_score}/100 คะแนน</b> โครงสร้างราคาอ่อนแอ ควรหลีกเลี่ยง
                     </div>
                     """, unsafe_allow_html=True)
 
-                # กราฟราคาชั่วคราวประกอบบทความ
                 try:
                     hist_chart = yf.download(t_ticker, period="6mo", progress=False)
                     if not hist_chart.empty:
@@ -471,8 +476,75 @@ else:
                     pass
 
     with tab3:
-        st.subheader("💼 พอร์ตการลงทุนของคุณ (My Portfolio & Deep Dive Analysis)")
-        st.markdown("จัดการข้อมูลพอร์ตของคุณด้านล่าง ระบบจะบันทึกอัตโนมัติ พร้อมทั้งแสดง **บทวิเคราะห์หุ้นรายตัวเชิงลึก** ทันที")
+        st.subheader("💼 พอร์ตการลงทุนของคุณ & ระบบสแกนใบเสร็จซื้อขาย (Receipt AI Scanner)")
+        st.markdown("คุณสามารถกรอกข้อมูลพอร์ตด้านล่าง หรือ **อัปโหลดรูปภาพใบเสร็จ/Slip ซื้อขายหุ้น** เพื่อให้ AI อ่านข้อมูลและเติมลงตารางให้โดยอัตโนมัติ")
+
+        # --- ส่วนอัปโหลดใบเสร็จซื้อขายหุ้น ---
+        with st.expander("📷 อัปโหลดใบเสร็จ/สลิปซื้อขายหุ้นเพื่อบันทึกลงพอร์ตอัตโนมัติ (AI OCR)", expanded=False):
+            uploaded_receipt = st.file_uploader("เลือกรูปภาพใบเสร็จ (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+            ai_key_receipt = st.sidebar.text_input("🔑 OpenAI API Key (สำหรับสแกนใบเสร็จ & AI Chat)", type="password", key="receipt_key")
+            
+            if uploaded_receipt is not None:
+                image = Image.open(uploaded_receipt)
+                st.image(image, caption="ใบเสร็จที่คุณอัปโหลด", width=300)
+                
+                if st.button("🚀 สแกนใบเสร็จและเพิ่มเข้าพอร์ต"):
+                    if not ai_key_receipt:
+                        st.error("กรุณากรอก OpenAI API Key ที่แถบด้านซ้ายมือ (Sidebar) ก่อนใช้งานฟังก์ชันสแกนใบเสร็จ")
+                    else:
+                        with st.spinner("AI กำลังแกะข้อมูลจากใบเสร็จ..."):
+                            try:
+                                buffered = io.BytesIO()
+                                image.save(buffered, format="JPEG")
+                                img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+                                client = openai.OpenAI(api_key=ai_key_receipt)
+                                response = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": "คุณคือนักสกัดข้อมูลจากใบเสร็จซื้อขายหุ้น จงอ่านรูปภาพแล้วตอบกลับมาเป็น JSON บริสุทธิ์รูปแบบนี้เท่านั้น โดยไม่มีข้อความอื่น: {\"Ticker\": \"AAPL\", \"Shares\": 10.0, \"Buy Price (USD)\": 175.5}"
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": [
+                                                {"type": "text", "text": "กรุณาอ่าน Ticker, จำนวนหุ้น (Shares) และราคาซื้อต่อหุ้น (Buy Price (USD)) จากใบเสร็จนี้"},
+                                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
+                                            ]
+                                        }
+                                    ],
+                                    max_tokens=150
+                                ]
+                                res_text = response.choices[0].message.content.strip()
+                                if res_text.startswith("```json"):
+                                    res_text = res_text[7:-3].strip()
+                                elif res_text.startswith("```"):
+                                    res_text = res_text[3:-3].strip()
+                                
+                                extracted_data = json.loads(res_text)
+                                new_ticker = str(extracted_data.get("Ticker", "")).upper()
+                                new_shares = float(extracted_data.get("Shares", 0))
+                                new_price = float(extracted_data.get("Buy Price (USD)", 0))
+
+                                if new_ticker and new_shares > 0 and new_price > 0:
+                                    if "portfolio_input" not in st.session_state:
+                                        st.session_state.portfolio_input = load_portfolio_from_disk()
+                                    
+                                    new_row = pd.DataFrame([{
+                                        "Ticker": new_ticker,
+                                        "Shares": new_shares,
+                                        "Buy Price (USD)": new_price,
+                                        "Asset Class": "Growth"
+                                    }])
+                                    st.session_state.portfolio_input = pd.concat([st.session_state.portfolio_input, new_row], ignore_index=True)
+                                    save_portfolio_to_disk(st.session_state.portfolio_input)
+                                    st.success(f"สแกนสำเร็จ! เพิ่มหุ้น {new_ticker} จำนวน {new_shares} หุ้น ที่ราคา ${new_price} ลงในพอร์ตเรียบร้อยแล้ว")
+                                    st.rerun()
+                                else:
+                                    st.error("AI ไม่สามารถอ่านข้อมูลหุ้นจากใบเสร็จนี้ได้ชัดเจน กรุณากรอกข้อมูลลงในตารางด้วยตนเอง")
+                            except Exception as e:
+                                st.error(f"เกิดข้อผิดพลาดในการประมวลผลรูปภาพ: {e}")
 
         if "portfolio_input" not in st.session_state:
             st.session_state.portfolio_input = load_portfolio_from_disk()
@@ -506,7 +578,6 @@ else:
             st.rerun()
 
         df_res = pd.DataFrame()
-        price_history_map = {}
         if not edited_portfolio.empty:
             clean_rows = []
             for _, row in edited_portfolio.iterrows():
@@ -558,12 +629,8 @@ else:
                     hist = yf.download(ticker, period="6mo", progress=False)
                     if not hist.empty:
                         close_series = hist['Close'].iloc[:, 0] if isinstance(hist.columns, pd.MultiIndex) else hist['Close']
-                        price_history_map[ticker] = close_series
                         if match_row.empty:
                             current_price = float(close_series.iloc[-1])
-                            ref_price = float(close_series.iloc[-min(5, len(close_series))])
-                            wk_change = (current_price - ref_price) / ref_price * 100
-                            trend = "ขาขึ้น" if wk_change > 0.5 else ("ขาลง" if wk_change < -0.5 else "ไซด์เวย์")
                 except Exception:
                     if current_price == 0.0:
                         current_price = buy_price
@@ -585,9 +652,6 @@ else:
                     'Simons Signal': signal,
                     'Score': score,
                     'Trend': trend,
-                    'Volatility (%)': volatility,
-                    'SMA 50': sma_50,
-                    'Momentum 1M (%)': mom_1m,
                     'Asset Class': asset_class
                 })
 
@@ -605,7 +669,6 @@ else:
                 col_m2.metric("📈 มูลค่าพอร์ตปัจจุบัน", f"${total_current:,.2f}")
                 col_m3.metric("📊 กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
 
-                # --- ส่วนสรุปการปรับพอร์ตเฉพาะหุ้นในพอร์ตเท่านั้น ---
                 st.markdown("---")
                 st.subheader("💡 บทสรุปแผนการปรับพอร์ต (Quantitative Action Summary)")
                 
@@ -642,7 +705,7 @@ else:
                         st.success("ยอดเยี่ยม! ไม่มีหุ้นในพอร์ตที่เข้าข่ายต้องขายออกในรอบนี้")
 
                 st.markdown("---")
-                st.subheader("### 📋 สรุปภาพรวมพอร์ตการลงทุน")
+                st.subheader("📋 สรุปภาพรวมพอร์ตการลงทุน")
                 st.dataframe(
                     df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Weight in Portfolio (%)', 'Asset Class', 'Simons Signal', 'Score']],
                     column_config={
@@ -666,7 +729,7 @@ else:
 
     with tab4:
         st.subheader("🤖 พูดคุยกับ AI ปรมาจารย์ Jim Simons")
-        openai_api_key = st.sidebar.text_input("🔑 ใส่ OpenAI API Key", type="password")
+        openai_api_key = st.sidebar.text_input("🔑 ใส่ OpenAI API Key (สำหรับ AI Chat)", type="password", key="chat_key")
 
         if openai_api_key:
             portfolio_context = "ไม่มีข้อมูลพอร์ตในขณะนี้"
@@ -719,4 +782,4 @@ else:
                         except Exception as e:
                             st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ OpenAI: {e}")
         else:
-            st.info("💡 กรุณากรอก OpenAI API Key ที่แถบด้านซ้ายมือ (Sidebar) เพื่อเปิดใช้งานแชทผู้ช่วย AI")
+            st.info("💡 กรุณากรอก OpenAI API Key ที่แถบด้านซ้ายมือ (Sidebar) เพื่อเปิดใช้งานแชทผู้ช่วย AI และระบบสแกนใบเสร็จ")
