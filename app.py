@@ -291,7 +291,6 @@ def fetch_stock_data_batched(ticker_list, chunk_size=50):
     progress_bar.empty()
     return pd.DataFrame(all_rows)
 
-# ฟังก์ชันดึงข้อมูลธุรกิจผ่าน yfinance
 def get_company_business_info(ticker_symbol):
     try:
         t = yf.Ticker(ticker_symbol)
@@ -414,7 +413,6 @@ else:
                 t_vol = r_dd['Volatility (%)']
                 t_sma50 = r_dd['SMA 50']
 
-                # ดึงข้อมูลธุรกิจจริง
                 long_name, sector, industry, biz_summary = get_company_business_info(t_ticker)
 
                 st.markdown(f"""
@@ -479,7 +477,6 @@ else:
         st.subheader("💼 พอร์ตการลงทุนของคุณ & ระบบสแกนใบเสร็จซื้อขาย (Receipt AI Scanner)")
         st.markdown("คุณสามารถกรอกข้อมูลพอร์ตด้านล่าง หรือ **อัปโหลดรูปภาพใบเสร็จ/Slip ซื้อขายหุ้น** เพื่อให้ AI อ่านข้อมูลและเติมลงตารางให้โดยอัตโนมัติ")
 
-        # --- ส่วนอัปโหลดใบเสร็จซื้อขายหุ้น ---
         with st.expander("📷 อัปโหลดใบเสร็จ/สลิปซื้อขายหุ้นเพื่อบันทึกลงพอร์ตอัตโนมัติ (AI OCR)", expanded=False):
             uploaded_receipt = st.file_uploader("เลือกรูปภาพใบเสร็จ (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
             ai_key_receipt = st.sidebar.text_input("🔑 OpenAI API Key (สำหรับสแกนใบเสร็จ & AI Chat)", type="password", key="receipt_key")
@@ -515,7 +512,7 @@ else:
                                         }
                                     ],
                                     max_tokens=150
-                                ]
+                                )
                                 res_text = response.choices[0].message.content.strip()
                                 if res_text.startswith("```json"):
                                     res_text = res_text[7:-3].strip()
