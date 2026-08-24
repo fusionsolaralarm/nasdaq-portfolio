@@ -6,7 +6,7 @@ import openai
 import json
 import os
 
-# --- ตั้งค่าธีมแบบ Dynamic ตามที่ผู้ใช้เลือกใน Sidebar ---
+# --- ตั้งค่าหน้าเว็บ ---
 st.set_page_config(
     page_title="Simon Screener & Portfolio AI",
     page_icon="📈",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- สร้างกลไกสลับธีม (Light/Dark Mode) ---
+# --- กลไกสลับธีม (Light/Dark Mode) ---
 st.sidebar.header("🎨 ตั้งค่าการแสดงผล")
 theme_mode = st.sidebar.selectbox("เลือกธีมหน้าจอ", ["โหมดกลางคืน (Dark Mode)", "โหมดกลางวัน (Light Mode)"])
 
@@ -31,7 +31,7 @@ else:
     heading_color = "#0366d6"
     border_color = "#e1e4e8"
 
-# --- CSS Styling ที่ปรับสีตามธีมที่เลือก และแก้ปัญหาตัวหนังสือมองไม่เห็น ---
+# --- CSS Styling ---
 st.markdown(f"""
     <style>
     .main {{
@@ -52,6 +52,22 @@ st.markdown(f"""
     .stock-card p, .stock-card li {{
         color: {text_color};
         font-size: 15px;
+    }}
+    .action-box-buy {{
+        background-color: rgba(35, 134, 54, 0.15);
+        border: 1px solid #238636;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        color: {text_color};
+    }}
+    .action-box-sell {{
+        background-color: rgba(218, 54, 51, 0.15);
+        border: 1px solid #da3633;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        color: {text_color};
     }}
     .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
@@ -463,7 +479,45 @@ else:
                 col_m2.metric("📈 มูลค่าพอร์ตปัจจุบัน", f"${total_current:,.2f}")
                 col_m3.metric("📊 กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
 
-                st.markdown("### 📋 สรุปภาพรวมพอร์ตการลงทุน")
+                # --- ส่วนเพิ่มใหม่: บทสรุปการปรับพอร์ต (Action Plan: ซื้อเพิ่ม / ขายออก) ---
+                st.markdown("---")
+                st.subheader("💡 บทสรุปแผนการปรับพอร์ต (Quantitative Action Summary)")
+                
+                buy_candidates = df_res[df_res['Score'] >= 70]
+                sell_candidates = df_res[df_res['Score'] < 45]
+                hold_candidates = df_res[(df_res['Score'] >= 45) & (df_res['Score'] < 70)]
+
+                col_act1, col_act2 = st.columns(2)
+                with col_act1:
+                    st.markdown("#### 🟢 หุ้นที่ควรพิจารณา 'ซื้อเพิ่ม' (Strong Buy)")
+                    if not buy_candidates.empty:
+                        for _, bc in buy_candidates.iterrows():
+                            st.markdown(f"""
+                            <div class="action-box-buy">
+                                <b>📌 {bc['Ticker']}</b> (คะแนน: {bc['Score']}/100)<br>
+                                • โมเมนตัมขาขึ้นชัดเจน ราคาอยู่เหนือเส้น SMA 50<br>
+                                • แนะนำทยอยสะสมเพิ่มเพื่อเพิ่มน้ำหนักความเติบโตในพอร์ต
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("ไม่มีหุ้นในพอร์ตที่เข้าเงื่อนไขซื้อสะสมในรอบนี้ (คะแนน >= 70)")
+
+                with col_act2:
+                    st.markdown("#### 🔴 หุ้นที่ควรพิจารณา 'ขาย / ลดความเสี่ยง' (Sell / Avoid)")
+                    if not sell_candidates.empty:
+                        for _, sc in sell_candidates.iterrows():
+                            st.markdown(f"""
+                            <div class="action-box-sell">
+                                <b>📌 {sc['Ticker']}</b> (คะแนน: {sc['Score']}/100)<br>
+                                • สัญญาณทางเทคนิคอ่อนแอหรือหลุดเส้น SMA 50<br>
+                                • แนะนำพิจารณาขายทำกำไรหรือตัดขาดทุนเพื่อจำกัดความเสี่ยง
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.success("ยอดเยี่ยม! ไม่มีหุ้นในพอร์ตที่เข้าข่ายต้องขายออกในรอบนี้")
+
+                st.markdown("---")
+                st.subheader("### 📋 สรุปภาพรวมพอร์ตการลงทุน")
                 st.dataframe(
                     df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Weight in Portfolio (%)', 'Asset Class', 'Simons Signal', 'Score']],
                     column_config={
