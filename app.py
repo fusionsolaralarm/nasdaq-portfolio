@@ -573,9 +573,9 @@ def compute_simons_row(
     if score >= 70:
         signal = "🟢 ซื้อสะสม (Strong Buy)"
     elif score >= 45:
-        signal = "🟡 ถือ / เฝ้าสังเกต (Hold)"
+        signal = " ถือ / เฝ้าสังเกต (Hold)"
     else:
-        signal = "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
+        signal = " ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
 
     if return_1w > 0.5:
         trend = "ขาขึ้น"
@@ -848,14 +848,14 @@ def get_market_quote_snapshot(ticker_symbol):
             prepost=False
         )
         if hist is None or hist.empty:
-            return {"price": None, "timestamp": None, "status": "🔴 ไม่มีข้อมูลล่าสุด", "age_minutes": None}
+            return {"price": None, "timestamp": None, "status": " ไม่มี", "age_minutes": None}
 
         close = hist["Close"]
         if isinstance(close, pd.DataFrame):
             close = close.iloc[:, 0]
         close = close.dropna()
         if close.empty:
-            return {"price": None, "timestamp": None, "status": "🔴 ไม่มีราคาล่าสุด", "age_minutes": None}
+            return {"price": None, "timestamp": None, "status": " ไม่มีราคาล่าสุด", "age_minutes": None}
 
         ts = close.index[-1]
         if getattr(ts, "tzinfo", None) is None:
@@ -864,11 +864,11 @@ def get_market_quote_snapshot(ticker_symbol):
         age_minutes = max(0.0, (now - ts.to_pydatetime().astimezone(timezone.utc)).total_seconds() / 60.0)
 
         if age_minutes <= 5:
-            status = "🟢 ล่าสุดจากตลาด / Latest (อาจมี Delay)"
+            status = "ล่าสุดจากตลาด / Latest (อาจมี Delay)"
         elif age_minutes <= 30:
-            status = "🟡 ข้อมูลล่าสุดแบบมี Delay / Delayed"
+            status = " แบบมี Delay / Delayed"
         else:
-            status = "🔴 ข้อมูลเก่า / Stale"
+            status = " ข้อมูลเก่า / Stale"
 
         return {
             "price": float(close.iloc[-1]),
@@ -877,7 +877,7 @@ def get_market_quote_snapshot(ticker_symbol):
             "age_minutes": age_minutes,
         }
     except Exception as e:
-        return {"price": None, "timestamp": None, "status": f"🔴 ดึงข้อมูลไม่ได้: {e}", "age_minutes": None}
+        return {"price": None, "timestamp": None, "status": f" ดึงข้อมูลไม่ได้: {e}", "age_minutes": None}
 
 
 # =========================================================
@@ -1817,8 +1817,8 @@ with tab1:
             [
                 "ทั้งหมด",
                 "🟢 ซื้อสะสม (Strong Buy)",
-                "🟡 ถือ / เฝ้าสังเกต (Hold)",
-                "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
+                " ถือ / เฝ้าสังเกต (Hold)",
+                " ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
             ]
         )
 
@@ -2190,7 +2190,7 @@ with tab2:
                         if row_dd:
                             match_dd = pd.DataFrame([row_dd])
             except Exception as e:
-                st.warning(f"ไม่สามารถดึงข้อมูลราคาของ {inner_search_ticker}: {e}")
+                st.warning(f"ไม่สามารถดึงราคาของ {inner_search_ticker}: {e}")
 
         if match_dd.empty:
             st.error(f"ไม่พบข้อมูลสำหรับ {inner_search_ticker}")
@@ -2236,15 +2236,15 @@ with tab2:
                 c5.metric("Volatility", f"{t_vol:.2f}%")
 
                 # Data freshness
-                st.markdown("#### สถานะข้อมูลราคา (Market Data Freshness)")
+                st.markdown("#### สถานะราคา (Market Data Freshness)")
                 q1, q2, q3 = st.columns(3)
                 q1.metric("สถานะ", quote.get("status", "N/A"))
-                q2.metric("เวลาข้อมูลล่าสุด", quote.get("timestamp") or "N/A")
+                q2.metric("เวลา", quote.get("timestamp") or "N/A")
                 age = quote.get("age_minutes")
-                q3.metric("อายุข้อมูล", f"{age:.1f} นาที" if age is not None else "N/A")
+                q3.metric("อายุ", f"{age:.1f} นาที" if age is not None else "N/A")
                 st.caption(
                     "หมายเหตุ: yfinance/Yahoo Finance ไม่รับประกันข้อมูล Real-time ระดับโบรกเกอร์ "
-                    "สถานะสีเขียวหมายถึงข้อมูลล่าสุดที่เข้าถึงได้ ไม่ได้ยืนยันว่าเป็น Real-time 100%"
+                    "สถานะสีเขียวหมายถึงที่เข้าถึงได้ ไม่ได้ยืนยันว่าเป็น Real-time 100%"
                 )
 
                 # 1 Business profile
@@ -2297,7 +2297,7 @@ with tab2:
                 for item in outlook["business_drivers"]:
                     st.markdown(f"- {item}")
 
-                st.markdown("#### จุดแข็งที่เห็นจากข้อมูลล่าสุด")
+                st.markdown("#### จุดแข็งที่เห็นจาก")
                 for item in outlook["strengths"]:
                     st.markdown(f"- {item}")
 
