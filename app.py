@@ -798,6 +798,36 @@ def get_company_business_info(
 
 
 # =========================================================
+# FORMATTING HELPERS
+# =========================================================
+def format_money(value):
+    """แปลงตัวเลขทางการเงินเป็นรูปแบบอ่านง่าย"""
+    if value is None:
+        return "N/A"
+    try:
+        value = float(value)
+    except Exception:
+        return "N/A"
+    if abs(value) >= 1e12:
+        return f"${value / 1e12:.2f}T"
+    if abs(value) >= 1e9:
+        return f"${value / 1e9:.2f}B"
+    if abs(value) >= 1e6:
+        return f"${value / 1e6:.2f}M"
+    return f"${value:,.0f}"
+
+
+def pct_text(value):
+    if value is None:
+        return "N/A"
+    return f"{float(value) * 100:+.2f}%"
+
+
+def metric_or_na(value, suffix=""):
+    return "N/A" if value is None else f"{float(value):.2f}{suffix}"
+
+
+# =========================================================
 # DETAILED STOCK ANALYSIS
 # =========================================================
 
@@ -827,28 +857,6 @@ def get_detailed_stock_analysis(
             except Exception:
 
                 return None
-
-        def fmt_money(value):
-
-            if value is None:
-                return "N/A"
-
-            if abs(value) >= 1e12:
-                return (
-                    f"${value / 1e12:.2f}T"
-                )
-
-            if abs(value) >= 1e9:
-                return (
-                    f"${value / 1e9:.2f}B"
-                )
-
-            if abs(value) >= 1e6:
-                return (
-                    f"${value / 1e6:.2f}M"
-                )
-
-            return f"${value:,.0f}"
 
         data = {
 
@@ -1510,8 +1518,6 @@ def get_detailed_stock_analysis(
             "long_term":
                 long_term,
 
-            "fmt_money":
-                fmt_money
         }
 
     except Exception as e:
@@ -1785,869 +1791,610 @@ with tab1:
 # TAB 2
 # =========================================================
 
+def build_stock_specific_outlook(data, ticker, t_price, t_score, t_trend, t_mom1m, t_mom1w, t_vol):
+    """สร้างมุมมองอนาคตแบบเจาะจงรายบริษัทจากข้อมูลพื้นฐาน + ราคา"""
+    sector = str(data.get("sector") or "N/A")
+    industry = str(data.get("industry") or "N/A")
+    summary = str(data.get("summary") or "ไม่มีข้อมูลธุรกิจ")
+    revenue_growth = data.get("revenue_growth")
+    earnings_growth = data.get("earnings_growth")
+    profit_margin = data.get("profit_margin")
+    gross_margin = data.get("gross_margin")
+    operating_margin = data.get("operating_margin")
+    roe = data.get("return_on_equity")
+    roa = data.get("return_on_assets")
+    fcf = data.get("free_cash_flow")
+    debt = data.get("debt_to_equity")
+    forward_pe = data.get("forward_pe")
+    pe = data.get("pe")
+    peg = data.get("peg")
+    target = data.get("target_mean")
+    target_low = data.get("target_low")
+    target_high = data.get("target_high")
+    high52 = data.get("fifty_two_high")
+    low52 = data.get("fifty_two_low")
+    beta = data.get("beta")
+    current_ratio = data.get("current_ratio")
+    market_cap = data.get("market_cap")
+    enterprise_value = data.get("enterprise_value")
+    employees = data.get("employees")
+    recommendation_key = data.get("recommendation_key")
+    country = data.get("country")
+    website = data.get("website")
+
+    s = (sector + " " + industry).lower()
+    catalysts = []
+    risks = []
+    business_drivers = []
+
+    if "semiconductor" in s or "semiconductors" in s:
+        business_drivers = [
+            "การเติบโตของ AI accelerator / data-center และความต้องการ compute",
+            "การลงทุนของ Cloud/Hyperscaler และรอบ CapEx ของ Data Center",
+            "เทคโนโลยี node/process, packaging, networking หรือ memory ตามตำแหน่งของบริษัท",
+            "การเพิ่ม market share และการเปิดตัวผลิตภัณฑ์รุ่นใหม่",
+        ]
+        catalysts = [
+            "ยอดสั่งซื้อชิปหรือระบบ AI เพิ่มขึ้น",
+            "Gross Margin / Operating Margin ขยายตัว",
+            "การเปิดตัวผลิตภัณฑ์ใหม่ที่มี ASP และกำไรสูงขึ้น",
+            "การเพิ่มกำลังผลิตโดยไม่ทำให้ต้นทุนต่อหน่วยสูงขึ้น",
+        ]
+        risks = [
+            "วัฏจักร Semiconductor และการปรับลด Inventory",
+            "การแข่งขันด้านเทคโนโลยีและการเปลี่ยน architecture",
+            "Export controls / Geopolitical risk",
+            "Valuation สูงเกินกว่าการเติบโตของกำไรจริง",
+        ]
+    elif "technology" in s or "software" in s:
+        business_drivers = [
+            "การเพิ่มจำนวนลูกค้าและรายได้ต่อหนึ่งลูกค้า",
+            "Recurring revenue / subscription และการรักษา retention",
+            "AI, cloud และ automation ที่เพิ่มมูลค่าต่อผลิตภัณฑ์",
+            "Operating leverage เมื่อรายได้โตเร็วกว่าค่าใช้จ่าย",
+        ]
+        catalysts = [
+            "Net new customers / bookings สูงกว่าคาด",
+            "การเพิ่ม ARPU และ cross-sell",
+            "AI monetization ที่แปลงเป็นรายได้จริง",
+            "Free Cash Flow และ Margin ดีขึ้น",
+        ]
+        risks = [
+            "การแข่งขันและการลดราคา",
+            "AI disruption ต่อผลิตภัณฑ์เดิม",
+            "ลูกค้าชะลอ IT spending",
+            "Valuation ที่พึ่งพาการเติบโตระยะยาวสูง",
+        ]
+    elif "health" in s or "biotech" in s or "drug" in s:
+        business_drivers = [
+            "การเติบโตของผลิตภัณฑ์/ยาหลักและ pipeline",
+            "ตลาดผู้สูงอายุและโรคเรื้อรัง",
+            "การอนุมัติผลิตภัณฑ์และการขยาย indication",
+            "การขยายตลาดและความสามารถในการรักษา pricing power",
+        ]
+        catalysts = [
+            "ผลการทดลองหรือ FDA approval ที่เป็นบวก",
+            "ยอดขายผลิตภัณฑ์หลักสูงกว่าคาด",
+            "การเพิ่ม indication / geographic expansion",
+            "Margin และ Free Cash Flow ดีขึ้น",
+        ]
+        risks = [
+            "Clinical / regulatory risk",
+            "Patent expiry และการแข่งขัน Generic",
+            "การควบคุมราคายา",
+            "Pipeline ไม่สามารถชดเชยผลิตภัณฑ์เดิมได้",
+        ]
+    elif "financial" in s:
+        business_drivers = [
+            "ทิศทางอัตราดอกเบี้ยและ Net Interest Margin",
+            "การเติบโตของสินเชื่อและคุณภาพสินทรัพย์",
+            "Investment banking / trading / wealth management",
+            "ประสิทธิภาพต้นทุนและ digital transformation",
+        ]
+        catalysts = [
+            "Credit growth และ fee income ดีขึ้น",
+            "Credit losses ต่ำกว่าคาด",
+            "ต้นทุนดำเนินงานลดลง",
+            "Capital return / buyback สนับสนุน EPS",
+        ]
+        risks = [
+            "Credit losses และเศรษฐกิจถดถอย",
+            "Interest-rate sensitivity",
+            "Regulatory capital requirement",
+            "Yield curve / liquidity pressure",
+        ]
+    elif "consumer" in s or "retail" in s:
+        business_drivers = [
+            "กำลังซื้อและจำนวนลูกค้า",
+            "Same-store sales / e-commerce growth",
+            "Pricing power และความแข็งแรงของแบรนด์",
+            "การบริหาร Inventory และ Supply Chain",
+        ]
+        catalysts = [
+            "ยอดขายสาขาเดิมและ e-commerce สูงกว่าคาด",
+            "Gross Margin ฟื้นตัว",
+            "การเพิ่ม market share",
+            "การขยายสาขาหรือสินค้าใหม่",
+        ]
+        risks = [
+            "ผู้บริโภคลดการใช้จ่าย",
+            "เงินเฟ้อและต้นทุนสินค้า",
+            "การแข่งขันด้านราคา",
+            "Inventory สูงและ markdown pressure",
+        ]
+    elif "industrial" in s:
+        business_drivers = [
+            "คำสั่งซื้อใหม่และ backlog",
+            "Infrastructure / manufacturing CapEx",
+            "Automation และ productivity",
+            "การควบคุมต้นทุนและ operating leverage",
+        ]
+        catalysts = [
+            "Backlog เพิ่มขึ้น",
+            "คำสั่งซื้อและ utilization สูงขึ้น",
+            "Margin expansion",
+            "การลงทุนโครงสร้างพื้นฐาน",
+        ]
+        risks = [
+            "เศรษฐกิจชะลอตัวและคำสั่งซื้อลด",
+            "ต้นทุนวัตถุดิบ",
+            "Supply-chain disruption",
+            "Cyclical demand",
+        ]
+    else:
+        business_drivers = [
+            "การเติบโตของรายได้และฐานลูกค้า",
+            "การเพิ่ม market share",
+            "การเปิดตลาดหรือผลิตภัณฑ์ใหม่",
+            "การเพิ่มประสิทธิภาพต้นทุนและกระแสเงินสด",
+        ]
+        catalysts = [
+            "Revenue / Earnings สูงกว่าคาด",
+            "Margin ขยายตัว",
+            "ผลิตภัณฑ์ใหม่หรือการขยายตลาด",
+            "Free Cash Flow แข็งแรงขึ้น",
+        ]
+        risks = [
+            "เศรษฐกิจมหภาค",
+            "การแข่งขัน",
+            "ต้นทุนและ Supply Chain",
+            "ดอกเบี้ยและ Regulation",
+        ]
+
+    strengths = []
+    watch = []
+
+    if revenue_growth is not None:
+        strengths.append(f"รายได้เติบโต {revenue_growth*100:+.1f}%")
+        watch.append("ติดตาม Revenue Growth และ Guidance รายไตรมาส")
+    if earnings_growth is not None:
+        strengths.append(f"กำไรเติบโต {earnings_growth*100:+.1f}%")
+        watch.append("ติดตาม EPS / Earnings Growth ว่าโตจากธุรกิจจริงหรือรายการพิเศษ")
+    if profit_margin is not None:
+        strengths.append(f"Net Margin {profit_margin*100:.1f}%")
+        watch.append("ติดตาม Margin ว่ารักษาระดับได้หรือไม่")
+    if roe is not None:
+        strengths.append(f"ROE {roe*100:.1f}%")
+    if fcf is not None:
+        strengths.append(f"Free Cash Flow {format_money(fcf)}")
+    if debt is not None:
+        if debt < 80:
+            strengths.append(f"Debt/Equity {debt:.1f} อยู่ในระดับไม่สูงมาก")
+        elif debt > 150:
+            risks.insert(0, f"Debt/Equity สูงที่ {debt:.1f} ต้องติดตามภาระหนี้และดอกเบี้ย")
+    if t_price > 0 and t_mom1m > 0 and t_price > data.get("fiftyTwoWeekLow", t_price):
+        pass
+
+    valuation_signal = "ประเมินไม่ได้"
+    chosen_pe = forward_pe if forward_pe is not None else pe
+    if chosen_pe is not None:
+        if chosen_pe < 15:
+            valuation_signal = "ค่อนข้างถูกเมื่อเทียบกับหุ้นที่มีกำไร"
+        elif chosen_pe < 25:
+            valuation_signal = "ระดับปานกลาง"
+        elif chosen_pe < 40:
+            valuation_signal = "ค่อนข้างสูง ต้องมีการเติบโตของกำไรสนับสนุน"
+        else:
+            valuation_signal = "สูงมาก มีความคาดหวังการเติบโตสูง"
+
+    target_upside = None
+    if target is not None and t_price > 0:
+        target_upside = (target / t_price - 1) * 100
+
+    range_position = None
+    if low52 is not None and high52 is not None and high52 > low52:
+        range_position = max(0, min(100, (t_price - low52) / (high52 - low52) * 100))
+
+    if not strengths:
+        strengths.append("ข้อมูลพื้นฐานบางรายการจากแหล่งข้อมูลไม่ครบ จึงควรตรวจสอบงบล่าสุดเพิ่มเติม")
+    if not watch:
+        watch.append("ติดตามงบการเงิน, Guidance และกระแสเงินสดรายไตรมาส")
+
+    if t_score >= 70 and t_mom1m > 0:
+        near_term = "ภาพระยะสั้นถึงกลางเป็นบวก: Quant Score สูงและโมเมนตัม 1 เดือนเป็นบวก แต่ไม่ควรไล่ราคาเมื่อ Valuation สูงมาก"
+    elif t_score >= 45:
+        near_term = "ภาพระยะสั้นถึงกลางเป็นกลาง: ควรรอการยืนยันจาก Momentum, Earnings และ Guidance ก่อนเพิ่มน้ำหนัก"
+    else:
+        near_term = "ภาพระยะสั้นถึงกลางค่อนข้างอ่อนแอ: ควรให้ความสำคัญกับการรักษาเงินต้นและรอสัญญาณ Trend กลับตัว"
+
+    if revenue_growth is not None and revenue_growth > 0.15 and (earnings_growth is None or earnings_growth > 0):
+        long_term = "พื้นฐานมีโอกาสสนับสนุนการเติบโตระยะยาว เพราะรายได้ยังขยายตัวและกำไรไม่ได้สวนทาง อย่างไรก็ตามต้องพิสูจน์ว่าการเติบโตสามารถแปลงเป็น Free Cash Flow ได้ต่อเนื่อง"
+    elif profit_margin is not None and profit_margin > 0.15 and fcf is not None and fcf > 0:
+        long_term = "คุณภาพธุรกิจน่าสนใจจาก Margin และกระแสเงินสด แต่การเติบโตในอนาคตต้องติดตามว่าบริษัทสามารถเพิ่มรายได้โดยไม่ต้องใช้เงินลงทุนสูงเกินไปหรือไม่"
+    else:
+        long_term = "แนวโน้มระยะยาวยังขึ้นกับการเติบโตของรายได้ กำไร และ Free Cash Flow มากกว่าการเคลื่อนไหวของราคาหุ้นระยะสั้น"
+
+    return {
+        "business_drivers": business_drivers,
+        "catalysts": catalysts,
+        "risks": risks,
+        "strengths": strengths,
+        "watch": watch,
+        "valuation_signal": valuation_signal,
+        "target_upside": target_upside,
+        "range_position": range_position,
+        "near_term": near_term,
+        "long_term": long_term,
+        "sector_industry": f"{sector} / {industry}",
+        "company_summary": summary,
+        "profile": {
+            "country": country,
+            "website": website,
+            "employees": employees,
+            "market_cap": market_cap,
+            "enterprise_value": enterprise_value,
+            "recommendation_key": recommendation_key,
+            "beta": beta,
+            "current_ratio": current_ratio,
+            "gross_margin": gross_margin,
+            "operating_margin": operating_margin,
+            "roe": roe,
+            "roa": roa,
+            "peg": peg,
+        },
+    }
+
+
 with tab2:
-
-    st.subheader(
-        "📝 วิเคราะห์หุ้นรายตัวแบบละเอียด"
-    )
-
+    st.subheader("📝 วิเคราะห์หุ้นรายตัวแบบละเอียด")
     st.write(
-        "กรอก Ticker เพื่อดูธุรกิจ "
-        "พื้นฐาน การเติบโต Valuation "
-        "Technical Risk และแนวโน้มอนาคต"
+        "กรอก Ticker เพื่อดูข้อมูลบริษัท พื้นฐาน การเติบโต Valuation "
+        "Momentum ความเสี่ยง และแนวโน้มธุรกิจในอนาคตแบบเจาะจงรายหุ้น"
     )
 
     inner_search_ticker = st.text_input(
         "🔍 Ticker หุ้น",
-        "NVDA"
+        "NVDA",
+        key="detail_ticker"
     ).upper().strip()
 
     if not inner_search_ticker:
-
-        st.info(
-            "กรุณากรอก Ticker"
-        )
-
+        st.info("กรุณากรอก Ticker")
     else:
-
-        match_dd = df[
-            df["Ticker"]
-            == inner_search_ticker
-        ]
+        match_dd = df[df["Ticker"] == inner_search_ticker]
 
         if match_dd.empty:
-
             try:
-
-                with st.spinner(
-                    f"กำลังดึงข้อมูล "
-                    f"{inner_search_ticker}..."
-                ):
-
+                with st.spinner(f"กำลังดึงข้อมูล {inner_search_ticker}..."):
                     hist_dd = yf.download(
                         inner_search_ticker,
                         period="6mo",
                         progress=False,
                         auto_adjust=True
                     )
-
                     if not hist_dd.empty:
-
-                        if isinstance(
-                            hist_dd.columns,
-                            pd.MultiIndex
-                        ):
-
-                            cs_dd = (
-                                hist_dd[
-                                    "Close"
-                                ]
-                                .iloc[:, 0]
-                            )
-
+                        if isinstance(hist_dd.columns, pd.MultiIndex):
+                            cs_dd = hist_dd["Close"].iloc[:, 0]
                         else:
-
-                            cs_dd = (
-                                hist_dd[
-                                    "Close"
-                                ]
-                            )
-
-                        row_dd = (
-                            compute_simons_row(
-                                inner_search_ticker,
-                                cs_dd
-                            )
-                        )
-
+                            cs_dd = hist_dd["Close"]
+                        row_dd = compute_simons_row(inner_search_ticker, cs_dd)
                         if row_dd:
-
-                            match_dd = pd.DataFrame(
-                                [row_dd]
-                            )
-
-            except Exception:
-                pass
+                            match_dd = pd.DataFrame([row_dd])
+            except Exception as e:
+                st.warning(f"ไม่สามารถดึงข้อมูลราคาของ {inner_search_ticker}: {e}")
 
         if match_dd.empty:
-
-            st.error(
-                f"ไม่พบข้อมูล "
-                f"{inner_search_ticker}"
-            )
-
+            st.error(f"ไม่พบข้อมูลสำหรับ {inner_search_ticker}")
         else:
-
             r = match_dd.iloc[0]
+            t_ticker = str(r["Ticker"])
+            t_price = float(r["Price (USD)"])
+            t_score = int(r["Score"])
+            t_signal = str(r["Simons Signal"])
+            t_trend = str(r["Trend"])
+            t_mom1m = float(r["Momentum 1M (%)"])
+            t_mom1w = float(r["Momentum 1W (%)"])
+            t_vol = float(r["Volatility (%)"])
+            t_sma50 = float(r["SMA 50"])
 
-            t_ticker = r["Ticker"]
-            t_price = float(
-                r["Price (USD)"]
-            )
-            t_score = int(
-                r["Score"]
-            )
-            t_signal = r[
-                "Simons Signal"
-            ]
-            t_trend = r[
-                "Trend"
-            ]
-            t_mom1m = float(
-                r["Momentum 1M (%)"]
-            )
-            t_mom1w = float(
-                r["Momentum 1W (%)"]
-            )
-            t_vol = float(
-                r["Volatility (%)"]
-            )
-            t_sma50 = float(
-                r["SMA 50"]
-            )
-
-            analysis = (
-                get_detailed_stock_analysis(
-                    t_ticker
-                )
-            )
+            with st.spinner(f"กำลังวิเคราะห์ข้อมูลพื้นฐานของ {t_ticker}..."):
+                analysis = get_detailed_stock_analysis(t_ticker)
 
             if "error" in analysis:
-
-                st.error(
-                    "ไม่สามารถสร้างรายงาน "
-                    f"ได้: {analysis['error']}"
-                )
-
+                st.error(f"ไม่สามารถสร้างรายงานได้: {analysis['error']}")
             else:
-
                 data = analysis["data"]
-
-                fmt_money = (
-                    analysis["fmt_money"]
+                outlook = build_stock_specific_outlook(
+                    data, t_ticker, t_price, t_score, t_trend, t_mom1m, t_mom1w, t_vol
                 )
-
-                # =========================================
-                # HEADER
-                # =========================================
 
                 st.markdown("---")
-
-                st.title(
-                    f"📊 {t_ticker}"
-                )
-
+                st.title(f"📊 {t_ticker}")
                 st.caption(
-                    f"{data['long_name']} | "
-                    f"{data['sector']} | "
-                    f"{data['industry']}"
+                    f"{data['long_name']} | {data['sector']} | {data['industry']}"
                 )
 
-                # =========================================
-                # TOP METRICS
-                # =========================================
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("ราคาปัจจุบัน", f"${t_price:,.2f}")
+                c2.metric("Quant Score", f"{t_score}/100")
+                c3.metric("1M Momentum", f"{t_mom1m:+.2f}%")
+                c4.metric("1W Momentum", f"{t_mom1w:+.2f}%")
+                c5.metric("Volatility", f"{t_vol:.2f}%")
 
-                c1, c2, c3, c4 = st.columns(4)
-
-                c1.metric(
-                    "ราคาปัจจุบัน",
-                    f"${t_price:,.2f}"
-                )
-
-                c2.metric(
-                    "Quant Score",
-                    f"{t_score}/100"
-                )
-
-                c3.metric(
-                    "Momentum 1M",
-                    f"{t_mom1m:+.2f}%"
-                )
-
-                c4.metric(
-                    "Volatility",
-                    f"{t_vol:.2f}%"
-                )
-
-                # =========================================
-                # BUSINESS
-                # =========================================
-
+                # 1 Business profile
                 st.markdown("---")
+                st.subheader("1. 🏢 บริษัททำธุรกิจอะไร?")
+                st.write(data["summary"])
 
-                st.subheader(
-                    "1. 🏢 บริษัททำธุรกิจอะไร?"
-                )
+                p1, p2, p3, p4 = st.columns(4)
+                p1.metric("Sector", data["sector"])
+                p2.metric("Industry", data["industry"])
+                p3.metric("Market Cap", format_money(data["market_cap"]))
+                p4.metric("Enterprise Value", format_money(data["enterprise_value"]))
 
+                profile = outlook["profile"]
+                extra = []
+                if profile["country"]:
+                    extra.append(f"ประเทศ: {profile['country']}")
+                if profile["employees"] is not None:
+                    extra.append(f"พนักงาน: {int(profile['employees']):,} คน")
+                if profile["recommendation_key"]:
+                    extra.append(f"Consensus: {profile['recommendation_key']}")
+                if profile["beta"] is not None:
+                    extra.append(f"Beta: {profile['beta']:.2f}")
+                if extra:
+                    st.caption(" | ".join(extra))
+
+                # 2 Business model and future
+                st.subheader("2. 🔮 แนวโน้มธุรกิจในอนาคตแบบเจาะจงรายหุ้น")
                 st.write(
-                    data["summary"]
+                    f"หุ้น {t_ticker} อยู่ในกลุ่ม {outlook['sector_industry']} "
+                    "ดังนั้นการประเมินอนาคตควรเชื่อมโยง 3 เรื่องเข้าด้วยกัน: "
+                    "การเติบโตของตลาด, ความสามารถของบริษัทในการรักษา Margin/Market Share "
+                    "และราคาที่นักลงทุนยอมจ่ายให้กับกำไรในอนาคต"
                 )
 
-                b1, b2, b3 = st.columns(3)
+                st.markdown("#### เครื่องยนต์ธุรกิจที่ต้องจับตา")
+                for item in outlook["business_drivers"]:
+                    st.markdown(f"- {item}")
 
-                b1.metric(
-                    "Sector",
-                    data["sector"]
-                )
+                st.markdown("#### จุดแข็งที่เห็นจากข้อมูลล่าสุด")
+                for item in outlook["strengths"]:
+                    st.markdown(f"- {item}")
 
-                b2.metric(
-                    "Industry",
-                    data["industry"]
-                )
+                st.markdown("#### แนวโน้มระยะใกล้–กลาง")
+                st.info(outlook["near_term"])
 
-                b3.metric(
-                    "Market Cap",
-                    fmt_money(
-                        data["market_cap"]
-                    )
-                )
+                st.markdown("#### แนวโน้มระยะยาว")
+                st.info(outlook["long_term"])
 
-                # =========================================
-                # FINANCIAL
-                # =========================================
-
-                st.subheader(
-                    "2. 💰 Financial Snapshot"
-                )
-
+                # 3 Financial snapshot
+                st.subheader("3. 💰 Financial & Fundamental Snapshot")
                 f1, f2, f3, f4 = st.columns(4)
-
-                f1.metric(
-                    "Revenue",
-                    fmt_money(
-                        data["revenue"]
-                    )
-                )
-
+                f1.metric("Revenue", format_money(data["revenue"]))
                 f2.metric(
                     "Revenue Growth",
-                    (
-                        f"{data['revenue_growth'] * 100:.2f}%"
-                        if data["revenue_growth"]
-                        is not None
-                        else "N/A"
-                    )
+                    pct_text(data["revenue_growth"])
                 )
-
                 f3.metric(
-                    "Profit Margin",
-                    (
-                        f"{data['profit_margin'] * 100:.2f}%"
-                        if data["profit_margin"]
-                        is not None
-                        else "N/A"
-                    )
+                    "Earnings Growth",
+                    pct_text(data["earnings_growth"])
                 )
-
                 f4.metric(
-                    "EPS",
-                    (
-                        f"${data['eps']:.2f}"
-                        if data["eps"]
-                        is not None
-                        else "N/A"
-                    )
+                    "Free Cash Flow",
+                    format_money(data["free_cash_flow"])
                 )
 
                 f5, f6, f7, f8 = st.columns(4)
+                f5.metric("Gross Margin", pct_text(data["gross_margin"]))
+                f6.metric("Operating Margin", pct_text(data["operating_margin"]))
+                f7.metric("Net Margin", pct_text(data["profit_margin"]))
+                f8.metric("ROE", pct_text(data["return_on_equity"]))
 
-                f5.metric(
-                    "Forward P/E",
-                    (
-                        f"{data['forward_pe']:.2f}x"
-                        if data["forward_pe"]
-                        is not None
-                        else "N/A"
-                    )
-                )
+                f9, f10, f11, f12 = st.columns(4)
+                f9.metric("ROA", pct_text(data["return_on_assets"]))
+                f10.metric("Debt / Equity", metric_or_na(data["debt_to_equity"]))
+                f11.metric("Current Ratio", metric_or_na(data["current_ratio"]))
+                f12.metric("EPS", f"${data['eps']:.2f}" if data["eps"] is not None else "N/A")
 
-                f6.metric(
-                    "ROE",
-                    (
-                        f"{data['return_on_equity'] * 100:.2f}%"
-                        if data["return_on_equity"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                f7.metric(
-                    "Debt / Equity",
-                    (
-                        f"{data['debt_to_equity']:.1f}"
-                        if data["debt_to_equity"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                f8.metric(
-                    "Free Cash Flow",
-                    fmt_money(
-                        data["free_cash_flow"]
-                    )
-                )
-
-                # =========================================
-                # BUSINESS OUTLOOK
-                # =========================================
-
-                st.subheader(
-                    "3. 🔮 แนวโน้มธุรกิจในอนาคต"
-                )
-
+                # 4 Growth engine
+                st.subheader("4. 🚀 Growth Engine")
                 st.write(
-                    f"""
-                    การประเมิน {t_ticker}
-                    ไม่ควรดูเฉพาะราคาหุ้น แต่ควรดูว่า
-                    บริษัทสามารถเพิ่มรายได้ กำไร
-                    กระแสเงินสด และ Market Share
-                    ได้หรือไม่
-                    """
+                    "ดูว่าการเติบโตของบริษัทเกิดจาก Revenue, Earnings และ Cash Flow "
+                    "หรือเป็นเพียงการขยาย Valuation"
                 )
-
-                st.markdown(
-                    "### ปัจจัยที่จะสนับสนุนการเติบโต"
-                )
-
-                for item in analysis["outlook"]:
-
-                    st.markdown(
-                        f"- {item}"
-                    )
-
-                st.markdown(
-                    "### มุมมองระยะกลาง"
-                )
-
-                st.info(
-                    analysis["medium_term"]
-                )
-
-                st.markdown(
-                    "### มุมมองระยะยาว"
-                )
-
-                st.info(
-                    analysis["long_term"]
-                )
-
-                # =========================================
-                # GROWTH ENGINE
-                # =========================================
-
-                st.subheader(
-                    "4. 🚀 Growth Engine"
-                )
-
                 g1, g2, g3 = st.columns(3)
+                g1.metric("Growth Score", f"{analysis['growth_score']}/6")
+                g2.metric("Quality Score", f"{analysis['quality_score']}/6")
+                g3.metric("Debt Score", f"{analysis['debt_score']}/3")
 
+                growth_notes = []
                 if data["revenue_growth"] is not None:
-
-                    g1.metric(
-                        "Revenue Growth",
-                        f"{data['revenue_growth'] * 100:+.2f}%"
+                    growth_notes.append(
+                        f"Revenue Growth {data['revenue_growth']*100:+.2f}%"
                     )
-
-                else:
-
-                    g1.metric(
-                        "Revenue Growth",
-                        "N/A"
-                    )
-
                 if data["earnings_growth"] is not None:
-
-                    g2.metric(
-                        "Earnings Growth",
-                        f"{data['earnings_growth'] * 100:+.2f}%"
+                    growth_notes.append(
+                        f"Earnings Growth {data['earnings_growth']*100:+.2f}%"
                     )
-
-                else:
-
-                    g2.metric(
-                        "Earnings Growth",
-                        "N/A"
+                if data["free_cash_flow"] is not None:
+                    growth_notes.append(
+                        f"Free Cash Flow {format_money(data['free_cash_flow'])}"
                     )
+                st.write(" | ".join(growth_notes) if growth_notes else "ข้อมูล Growth ไม่ครบ")
 
-                g3.metric(
-                    "Free Cash Flow",
-                    fmt_money(
-                        data["free_cash_flow"]
-                    )
-                )
-
-                st.write(
-                    f"""
-                    **Growth Score:** 
-                    {analysis['growth_score']}
-                    
-                    คะแนนนี้ใช้เพื่อประเมินเบื้องต้นว่า
-                    Revenue และ Earnings
-                    มีแนวโน้มเติบโตหรือไม่
-                    """
-                )
-
-                # =========================================
-                # PROFITABILITY
-                # =========================================
-
-                st.subheader(
-                    "5. 📈 คุณภาพของธุรกิจและกำไร"
-                )
-
-                q1, q2, q3, q4 = st.columns(4)
-
-                q1.metric(
-                    "Gross Margin",
-                    (
-                        f"{data['gross_margin'] * 100:.2f}%"
-                        if data["gross_margin"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                q2.metric(
-                    "Operating Margin",
-                    (
-                        f"{data['operating_margin'] * 100:.2f}%"
-                        if data["operating_margin"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                q3.metric(
-                    "Profit Margin",
-                    (
-                        f"{data['profit_margin'] * 100:.2f}%"
-                        if data["profit_margin"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                q4.metric(
-                    "ROA",
-                    (
-                        f"{data['return_on_assets'] * 100:.2f}%"
-                        if data["return_on_assets"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                st.write(
-                    f"""
-                    **Quality Score:** 
-                    {analysis['quality_score']}
-                    
-                    คะแนนสูงหมายถึงบริษัทมี
-                    Margin และ ROE
-                    ที่ค่อนข้างแข็งแรง
-                    """
-                )
-
-                # =========================================
-                # CATALYST
-                # =========================================
-
-                st.subheader(
-                    "6. ⚡ Catalyst"
-                )
-
-                st.write(
-                    "ปัจจัยที่อาจทำให้รายได้ กำไร "
-                    "หรือ Valuation ของบริษัทดีขึ้น:"
-                )
-
-                for item in analysis[
-                    "catalysts"
-                ]:
-
-                    st.markdown(
-                        f"- **{item}**"
-                    )
-
-                # =========================================
-                # RISK
-                # =========================================
-
-                st.subheader(
-                    "7. ⚠️ ความเสี่ยง"
-                )
-
-                for item in analysis["risks"]:
-
-                    st.markdown(
-                        f"- **{item}**"
-                    )
-
-                # =========================================
-                # VALUATION
-                # =========================================
-
-                st.subheader(
-                    "8. 💵 Valuation"
-                )
-
+                # 5 Valuation
+                st.subheader("5. 💵 Valuation")
                 v1, v2, v3, v4 = st.columns(4)
-
-                v1.metric(
-                    "P/E",
-                    (
-                        f"{data['pe']:.2f}x"
-                        if data["pe"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                v2.metric(
-                    "Forward P/E",
-                    (
-                        f"{data['forward_pe']:.2f}x"
-                        if data["forward_pe"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                v3.metric(
-                    "PEG",
-                    (
-                        f"{data['peg']:.2f}"
-                        if data["peg"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
-                v4.metric(
-                    "P/S",
-                    (
-                        f"{data['price_to_sales']:.2f}x"
-                        if data["price_to_sales"]
-                        is not None
-                        else "N/A"
-                    )
-                )
-
+                v1.metric("P/E", metric_or_na(data["pe"], "x"))
+                v2.metric("Forward P/E", metric_or_na(data["forward_pe"], "x"))
+                v3.metric("PEG", metric_or_na(data["peg"]))
+                v4.metric("P/S", metric_or_na(data["price_to_sales"], "x"))
                 st.info(
-                    analysis["valuation_text"]
+                    f"มุมมอง Valuation: {analysis['valuation_text']} "
+                    f"({outlook['valuation_signal']})"
                 )
 
-                # =========================================
-                # ANALYST TARGET
-                # =========================================
-
-                st.subheader(
-                    "9. 🎯 Analyst Target Price"
-                )
-
-                a1, a2, a3 = st.columns(3)
-
+                # 6 Analyst targets
+                st.subheader("6. 🎯 Analyst Target Price")
+                a1, a2, a3, a4 = st.columns(4)
                 a1.metric(
                     "Target Low",
-                    (
-                        f"${data['target_low']:,.2f}"
-                        if data["target_low"]
-                        is not None
-                        else "N/A"
-                    )
+                    f"${data['target_low']:,.2f}" if data["target_low"] is not None else "N/A"
                 )
-
                 a2.metric(
                     "Target Mean",
-                    (
-                        f"${data['target_mean']:,.2f}"
-                        if data["target_mean"]
-                        is not None
-                        else "N/A"
-                    )
+                    f"${data['target_mean']:,.2f}" if data["target_mean"] is not None else "N/A"
                 )
-
                 a3.metric(
                     "Target High",
-                    (
-                        f"${data['target_high']:,.2f}"
-                        if data["target_high"]
-                        is not None
-                        else "N/A"
-                    )
+                    f"${data['target_high']:,.2f}" if data["target_high"] is not None else "N/A"
                 )
+                if outlook["target_upside"] is not None:
+                    a4.metric("Upside to Mean", f"{outlook['target_upside']:+.2f}%")
+                else:
+                    a4.metric("Upside to Mean", "N/A")
 
-                # =========================================
-                # TECHNICAL
-                # =========================================
+                # 7 Catalysts and risks
+                st.subheader("7. ⚡ Catalyst ที่อาจทำให้หุ้นขึ้น")
+                for item in outlook["catalysts"]:
+                    st.markdown(f"- **{item}**")
 
-                st.subheader(
-                    "10. 📈 Technical & Momentum"
-                )
+                st.subheader("8. ⚠️ ความเสี่ยงเฉพาะหุ้น")
+                for item in outlook["risks"]:
+                    st.markdown(f"- **{item}**")
 
-                tc1, tc2, tc3, tc4 = st.columns(4)
-
-                tc1.metric(
-                    "1 Week",
-                    f"{t_mom1w:+.2f}%"
-                )
-
-                tc2.metric(
-                    "1 Month",
-                    f"{t_mom1m:+.2f}%"
-                )
-
-                tc3.metric(
-                    "SMA 50",
-                    f"${t_sma50:,.2f}"
-                )
-
-                tc4.metric(
-                    "Trend",
-                    t_trend
-                )
+                # 9 Technical
+                st.subheader("9. 📈 Technical & Momentum")
+                tc1, tc2, tc3, tc4, tc5 = st.columns(5)
+                tc1.metric("1 Week", f"{t_mom1w:+.2f}%")
+                tc2.metric("1 Month", f"{t_mom1m:+.2f}%")
+                tc3.metric("SMA 50", f"${t_sma50:,.2f}")
+                tc4.metric("Trend", t_trend)
+                tc5.metric("Quant Signal", t_signal)
 
                 if t_price > t_sma50:
-
-                    st.success(
-                        "ราคาปัจจุบันอยู่เหนือ "
-                        "SMA 50 — Momentum ระยะกลางเป็นบวก"
-                    )
-
+                    st.success("ราคาปัจจุบันอยู่เหนือ SMA 50 — โครงสร้าง Momentum ระยะกลางเป็นบวก")
                 else:
+                    st.warning("ราคาปัจจุบันต่ำกว่า SMA 50 — โครงสร้าง Momentum ระยะกลางยังอ่อนแอ")
 
-                    st.warning(
-                        "ราคาปัจจุบันต่ำกว่า "
-                        "SMA 50 — Momentum ระยะกลางอ่อนตัว"
-                    )
+                # 10 Risk profile
+                st.subheader("10. 🛡️ Risk Profile")
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Annualized Volatility", f"{t_vol:.2f}%")
+                r2.metric("Beta", metric_or_na(data["beta"]))
+                r3.metric("Debt / Equity", metric_or_na(data["debt_to_equity"]))
 
-                # =========================================
-                # 52 WEEK
-                # =========================================
+                if t_vol >= 60:
+                    st.error("ความผันผวนสูงมาก: ควรลด Position Size และหลีกเลี่ยงการใช้เงินก้อนใหญ่ในจังหวะเดียว")
+                elif t_vol >= 40:
+                    st.warning("ความผันผวนค่อนข้างสูง: เหมาะกับการทยอยซื้อและกำหนดขนาด Position ให้เหมาะสม")
+                else:
+                    st.success("ความผันผวนอยู่ในระดับที่ต่ำกว่าเกณฑ์ 40% ของโมเดล Quant")
 
-                st.subheader(
-                    "11. 📊 52 Week Range"
-                )
-
-                low52 = data[
-                    "fifty_two_low"
-                ]
-
-                high52 = data[
-                    "fifty_two_high"
-                ]
-
-                if (
-                    low52 is not None
-                    and high52 is not None
-                    and high52 > low52
-                ):
-
-                    position = (
-                        (
-                            t_price - low52
-                        )
-                        /
-                        (
-                            high52 - low52
-                        )
-                        * 100
-                    )
-
-                    position = max(
-                        0,
-                        min(
-                            100,
-                            position
-                        )
-                    )
-
-                    st.progress(
-                        position / 100
-                    )
-
+                # 11 52-week position
+                st.subheader("11. 📊 ตำแหน่งราคาในกรอบ 52 สัปดาห์")
+                low52 = data["fifty_two_low"]
+                high52 = data["fifty_two_high"]
+                if outlook["range_position"] is not None:
+                    st.progress(outlook["range_position"] / 100)
                     st.caption(
-                        f"52W Low: "
-                        f"${low52:,.2f} | "
-                        f"Current: "
-                        f"${t_price:,.2f} | "
-                        f"52W High: "
-                        f"${high52:,.2f}"
+                        f"52W Low: ${low52:,.2f} | Current: ${t_price:,.2f} | "
+                        f"52W High: ${high52:,.2f}"
                     )
-
                     st.write(
-                        f"ราคาปัจจุบันอยู่ที่ "
-                        f"**{position:.1f}%** "
-                        f"ของกรอบราคา 52 สัปดาห์"
+                        f"ราคาปัจจุบันอยู่ที่ประมาณ **{outlook['range_position']:.1f}%** "
+                        "ของกรอบ 52 สัปดาห์"
                     )
-
-                # =========================================
-                # BULL BASE BEAR
-                # =========================================
-
-                st.subheader(
-                    "12. 🧠 Bull / Base / Bear Scenario"
-                )
-
-                bull, base, bear = st.columns(3)
-
-                with bull:
-
-                    st.success(
-                        """
-                        **Bull Case**
-
-                        • Revenue Growth สูง  
-                        • Earnings Growth สูง  
-                        • Margin ขยายตัว  
-                        • Market Share เพิ่ม  
-                        • อุตสาหกรรมเติบโตแรง  
-                        • นักลงทุนยอมให้ Premium Valuation
-                        """
-                    )
-
-                with base:
-
-                    st.info(
-                        """
-                        **Base Case**
-
-                        • Revenue โตตามอุตสาหกรรม  
-                        • Margin ทรงตัว  
-                        • Earnings โตปานกลาง  
-                        • Valuation ไม่เปลี่ยนมาก  
-                        • ราคาหุ้นเคลื่อนไหวตามพื้นฐาน
-                        """
-                    )
-
-                with bear:
-
-                    st.error(
-                        """
-                        **Bear Case**
-
-                        • Revenue Growth ชะลอตัว  
-                        • Earnings ลดลง  
-                        • Margin หดตัว  
-                        • คู่แข่งเพิ่มขึ้น  
-                        • Valuation ลดลง  
-                        • ราคาหุ้นเกิดแรงขาย
-                        """
-                    )
-
-                # =========================================
-                # FINAL VERDICT
-                # =========================================
-
-                st.subheader(
-                    "13. 🎯 Final Investment Verdict"
-                )
-
-                if t_score >= 70:
-
-                    st.success(
-                        f"""
-                        🟢 **STRONG BUY / ACCUMULATE**
-
-                        {t_ticker} ได้ Quant Score
-                        **{t_score}/100**
-
-                        Momentum และโครงสร้างราคามีสัญญาณเชิงบวก
-                        เหมาะสำหรับพิจารณาทยอยสะสม
-
-                        อย่างไรก็ตามควรตรวจสอบ Valuation
-                        และผลประกอบการล่าสุดก่อนเพิ่มน้ำหนัก
-                        """
-                    )
-
-                elif t_score >= 45:
-
-                    st.warning(
-                        f"""
-                        🟡 **HOLD / WAIT & SEE**
-
-                        {t_ticker} ได้ Quant Score
-                        **{t_score}/100**
-
-                        ยังไม่มีสัญญาณที่แข็งแรงเพียงพอ
-                        สำหรับการเพิ่มน้ำหนักอย่าง aggressive
-
-                        หากมีหุ้นอยู่แล้วสามารถถือและติดตาม
-                        ผลประกอบการต่อได้
-                        """
-                    )
-
                 else:
+                    st.info("ไม่มีข้อมูล 52-week range ที่เพียงพอ")
 
+                # 12 Bull/Base/Bear
+                st.subheader("12. 🧠 Bull / Base / Bear Scenario")
+                bull, base, bear = st.columns(3)
+                with bull:
+                    st.success(
+                        "Bull Case\n\n"
+                        "• Revenue/Earnings สูงกว่าคาด\n\n"
+                        "• Margin ขยายตัว\n\n"
+                        "• Market Share เพิ่ม\n\n"
+                        "• Valuation ยังได้รับ Premium"
+                    )
+                with base:
+                    st.info(
+                        "Base Case\n\n"
+                        "• Revenue โตตามอุตสาหกรรม\n\n"
+                        "• Margin ทรงตัว\n\n"
+                        "• Earnings โตปานกลาง\n\n"
+                        "• Valuation เคลื่อนไหวใกล้ระดับเดิม"
+                    )
+                with bear:
                     st.error(
-                        f"""
-                        🔴 **AVOID / REDUCE RISK**
-
-                        {t_ticker} ได้ Quant Score
-                        **{t_score}/100**
-
-                        โครงสร้างทาง Quant ยังอ่อนแอ
-                        ควรเน้นการควบคุมความเสี่ยง
-                        และรอสัญญาณฟื้นตัว
-                        """
-
+                        "Bear Case\n\n"
+                        "• Revenue/Earnings ชะลอตัว\n\n"
+                        "• Margin หดตัว\n\n"
+                        "• คู่แข่งกดดัน\n\n"
+                        "• Valuation ถูก De-rate"
                     )
 
-                # =========================================
-                # PRICE CHART
-                # =========================================
+                # 13 Final verdict
+                st.subheader("13. 🎯 Final Investment Verdict")
+                if t_score >= 70:
+                    st.success(
+                        f"🟢 STRONG BUY / ACCUMULATE — {t_ticker} ได้ Quant Score "
+                        f"{t_score}/100 และ Momentum เป็นบวก เหมาะกับการพิจารณาทยอยสะสม "
+                        "โดยต้องตรวจสอบ Valuation และงบล่าสุดประกอบ"
+                    )
+                elif t_score >= 45:
+                    st.warning(
+                        f"🟡 HOLD / WAIT & SEE — {t_ticker} ได้ Quant Score "
+                        f"{t_score}/100 สัญญาณยังไม่แข็งแรงพอสำหรับการเพิ่มน้ำหนักแบบ aggressive"
+                    )
+                else:
+                    st.error(
+                        f"🔴 AVOID / REDUCE RISK — {t_ticker} ได้ Quant Score "
+                        f"{t_score}/100 โครงสร้าง Quant ยังอ่อนแอ ควรรอสัญญาณ Trend ฟื้นตัว"
+                    )
 
-                st.subheader(
-                    f"14. 📉 ราคาย้อนหลัง 6 เดือน — {t_ticker}"
-                )
+                # 14 What to monitor
+                st.subheader("14. 👀 สิ่งที่ควรติดตามในงบไตรมาสถัดไป")
+                for item in outlook["watch"]:
+                    st.markdown(f"- {item}")
+                st.markdown("- การเปลี่ยนแปลงของ Guidance และประมาณการ EPS")
+                st.markdown("- Free Cash Flow และระดับหนี้")
+                st.markdown("- การตอบสนองของราคาหุ้นต่อผลประกอบการ")
 
+                # 15 Price chart
+                st.subheader(f"15. 📉 ราคาย้อนหลัง 6 เดือน — {t_ticker}")
                 try:
-
                     hist_chart = yf.download(
                         t_ticker,
                         period="6mo",
                         progress=False,
                         auto_adjust=True
                     )
-
                     if not hist_chart.empty:
-
-                        if isinstance(
-                            hist_chart.columns,
-                            pd.MultiIndex
-                        ):
-
-                            close_c = (
-                                hist_chart[
-                                    "Close"
-                                ]
-                                .iloc[:, 0]
-                            )
-
+                        if isinstance(hist_chart.columns, pd.MultiIndex):
+                            close_c = hist_chart["Close"].iloc[:, 0]
                         else:
-
-                            close_c = (
-                                hist_chart[
-                                    "Close"
-                                ]
-                            )
-
-                        st.line_chart(
-                            close_c
-                        )
-
-                except Exception:
-
-                    st.warning(
-                        "ไม่สามารถสร้างกราฟได้"
-                    )
+                            close_c = hist_chart["Close"]
+                        st.line_chart(close_c)
+                except Exception as e:
+                    st.warning(f"ไม่สามารถสร้างกราฟได้: {e}")
 
                 st.caption(
-                    "หมายเหตุ: รายงานนี้ใช้ข้อมูลจาก "
-                    "Yahoo Finance และโมเดลเชิงปริมาณ "
-                    "ข้อมูลทางการเงินและราคาอาจเปลี่ยนแปลงได้ "
-                    "ไม่ควรใช้เป็นคำแนะนำการลงทุนเพียงแหล่งเดียว"
+                    "หมายเหตุ: รายงานนี้ใช้ข้อมูลจาก Yahoo Finance และโมเดล Quant "
+                    "ข้อมูลตลาดและตัวชี้วัดสามารถเปลี่ยนแปลงได้ ไม่ควรใช้เป็นคำแนะนำการลงทุนเพียงแหล่งเดียว"
                 )
 
 
