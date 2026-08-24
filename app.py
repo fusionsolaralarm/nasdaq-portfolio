@@ -16,7 +16,7 @@ import io
 
 st.set_page_config(
     page_title="SIMON Quant & Portfolio AI",
-    page_icon="📈",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -26,7 +26,7 @@ st.set_page_config(
 # THEME
 # =========================================================
 
-st.sidebar.header("🎨 ตั้งค่าการแสดงผล")
+st.sidebar.header(" ตั้งค่าการแสดงผล")
 
 theme_mode = st.sidebar.selectbox(
     "เลือกธีมหน้าจอ",
@@ -570,11 +570,11 @@ def compute_simons_row(
     )
 
     if score >= 70:
-        signal = "ซื้อสะสม (Strong Buy)"
+        signal = "🟢 ซื้อสะสม (Strong Buy)"
     elif score >= 45:
-        signal = "ถือ / เฝ้าสังเกต (Hold)"
+        signal = "🟡 ถือ / เฝ้าสังเกต (Hold)"
     else:
-        signal = "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
+        signal = "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
 
     if return_1w > 0.5:
         trend = "ขาขึ้น"
@@ -825,6 +825,52 @@ def pct_text(value):
 
 def metric_or_na(value, suffix=""):
     return "N/A" if value is None else f"{float(value):.2f}{suffix}"
+
+
+# =========================================================
+# THAI / ENGLISH BUSINESS LEARNING HELPERS
+# =========================================================
+BUSINESS_TERM_TRANSLATIONS = {
+    "business": "ธุรกิจ", "business model": "รูปแบบธุรกิจ", "business segment": "กลุ่มธุรกิจ",
+    "revenue": "รายได้", "sales": "ยอดขาย", "earnings": "ผลประกอบการ / กำไร",
+    "profit": "กำไร", "net income": "กำไรสุทธิ", "operating income": "กำไรจากการดำเนินงาน",
+    "gross margin": "อัตรากำไรขั้นต้น", "operating margin": "อัตรากำไรจากการดำเนินงาน",
+    "profit margin": "อัตรากำไรสุทธิ", "free cash flow": "กระแสเงินสดอิสระ", "cash flow": "กระแสเงินสด",
+    "market share": "ส่วนแบ่งตลาด", "market": "ตลาด", "customer": "ลูกค้า",
+    "enterprise": "องค์กร / บริษัทขนาดใหญ่", "software": "ซอฟต์แวร์", "hardware": "ฮาร์ดแวร์",
+    "platform": "แพลตฟอร์ม", "cloud": "คลาวด์", "data center": "ศูนย์ข้อมูล",
+    "artificial intelligence": "ปัญญาประดิษฐ์ (AI)", "semiconductor": "เซมิคอนดักเตอร์ / ชิป",
+    "technology": "เทคโนโลยี", "products": "ผลิตภัณฑ์", "services": "บริการ",
+    "solution": "โซลูชัน / แนวทางแก้ปัญหา", "solutions": "โซลูชัน / แนวทางแก้ปัญหา",
+    "growth": "การเติบโต", "demand": "ความต้องการ", "supply": "อุปทาน", "competition": "การแข่งขัน",
+    "competitive advantage": "ความได้เปรียบในการแข่งขัน", "pricing power": "ความสามารถในการตั้งราคา",
+    "investment": "การลงทุน", "capital expenditure": "รายจ่ายลงทุน (CapEx)",
+    "research and development": "การวิจัยและพัฒนา (R&D)", "research": "การวิจัย", "development": "การพัฒนา",
+    "manufacturing": "การผลิต", "international": "ระหว่างประเทศ", "global": "ระดับโลก",
+    "portfolio": "พอร์ตการลงทุน",
+}
+SECTOR_TRANSLATIONS = {
+    "Technology": "เทคโนโลยี", "Financial Services": "บริการทางการเงิน", "Healthcare": "การดูแลสุขภาพ",
+    "Consumer Cyclical": "สินค้าอุปโภคบริโภคตามวัฏจักร",
+    "Consumer Defensive": "สินค้าอุปโภคบริโภคที่มีความต้องการค่อนข้างสม่ำเสมอ",
+    "Industrials": "อุตสาหกรรม", "Communication Services": "บริการสื่อสาร", "Energy": "พลังงาน",
+    "Utilities": "สาธารณูปโภค", "Real Estate": "อสังหาริมทรัพย์", "Basic Materials": "วัสดุพื้นฐาน",
+}
+
+def company_learning_terms(summary, limit=12):
+    """เลือกคำศัพท์ธุรกิจที่พบในคำอธิบายบริษัทเพื่อฝึกภาษา"""
+    text = str(summary or "").lower()
+    found = []
+    for english, thai in BUSINESS_TERM_TRANSLATIONS.items():
+        if english.lower() in text and english not in [x[0] for x in found]:
+            found.append((english, thai))
+        if len(found) >= limit:
+            break
+    return found
+
+def translate_sector_name(value):
+    value = str(value or "N/A")
+    return SECTOR_TRANSLATIONS.get(value, value)
 
 
 # =========================================================
@@ -1532,7 +1578,7 @@ def get_detailed_stock_analysis(
 # =========================================================
 
 st.sidebar.header(
-    "⚙️ ตั้งค่าแหล่งข้อมูล & สแกนหุ้น"
+    " ตั้งค่าแหล่งข้อมูล & สแกนหุ้น"
 )
 
 scan_mode = st.sidebar.radio(
@@ -1615,7 +1661,7 @@ else:
     )
 
     run_scan = st.sidebar.button(
-        "🚀 เริ่มสแกนตลาดเต็มรูปแบบ",
+        " เริ่มสแกนตลาดเต็มรูปแบบ",
         use_container_width=True
     )
 
@@ -1668,7 +1714,7 @@ else:
     else:
 
         st.info(
-            "👈 กรุณาคลิก "
+            " กรุณาคลิก "
             "เริ่มสแกนตลาดที่ Sidebar"
         )
 
@@ -1691,10 +1737,10 @@ if df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(
     [
-        "📊 สแกนหุ้นตลาด",
-        "📝 วิเคราะห์หุ้นรายตัว",
-        "💼 พอร์ตของฉัน",
-        "🤖 AI Portfolio Advisor"
+        " สแกนหุ้นตลาด",
+        " วิเคราะห์หุ้นรายตัว",
+        " พอร์ตของฉัน",
+        " AI Portfolio Advisor"
     ]
 )
 
@@ -1706,7 +1752,7 @@ tab1, tab2, tab3, tab4 = st.tabs(
 with tab1:
 
     st.subheader(
-        "📊 Quantitative Stock Screener"
+        " Quantitative Stock Screener"
     )
 
     col1, col2 = st.columns(2)
@@ -1717,16 +1763,16 @@ with tab1:
             "กรองตามคำแนะนำ",
             [
                 "ทั้งหมด",
-                "ซื้อสะสม (Strong Buy)",
-                "ถือ / เฝ้าสังเกต (Hold)",
-                "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
+                "🟢 ซื้อสะสม (Strong Buy)",
+                "🟡 ถือ / เฝ้าสังเกต (Hold)",
+                "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
             ]
         )
 
     with col2:
 
         search_query = st.text_input(
-            "🔍 ค้นหา Ticker",
+            " ค้นหา Ticker",
             ""
         ).upper()
 
@@ -2056,14 +2102,14 @@ def build_stock_specific_outlook(data, ticker, t_price, t_score, t_trend, t_mom1
 
 
 with tab2:
-    st.subheader("📝 วิเคราะห์หุ้นรายตัวแบบละเอียด")
+    st.subheader(" วิเคราะห์หุ้นรายตัวแบบละเอียด")
     st.write(
         "กรอก Ticker เพื่อดูข้อมูลบริษัท พื้นฐาน การเติบโต Valuation "
         "Momentum ความเสี่ยง และแนวโน้มธุรกิจในอนาคตแบบเจาะจงรายหุ้น"
     )
 
     inner_search_ticker = st.text_input(
-        "🔍 Ticker หุ้น",
+        " Ticker หุ้น",
         "NVDA",
         key="detail_ticker"
     ).upper().strip()
@@ -2119,7 +2165,7 @@ with tab2:
                 )
 
                 st.markdown("---")
-                st.title(f"📊 {t_ticker}")
+                st.title(f" {t_ticker}")
                 st.caption(
                     f"{data['long_name']} | {data['sector']} | {data['industry']}"
                 )
@@ -2133,8 +2179,21 @@ with tab2:
 
                 # 1 Business profile
                 st.markdown("---")
-                st.subheader("1. 🏢 บริษัททำธุรกิจอะไร?")
+                st.subheader("1. บริษัททำธุรกิจอะไร? (Business Profile)")
                 st.write(data["summary"])
+
+                st.markdown("#### คำศัพท์จากข้อมูลบริษัท (Business Vocabulary)")
+                learning_terms = company_learning_terms(data["summary"], limit=12)
+                if learning_terms:
+                    vocab_rows = [{"English": en, "คำแปลไทย": th} for en, th in learning_terms]
+                    st.dataframe(pd.DataFrame(vocab_rows), use_container_width=True, hide_index=True)
+                else:
+                    st.caption("ยังไม่พบคำศัพท์ที่ตรงกับรายการฝึกภาษาในคำอธิบายบริษัท")
+
+                st.markdown("#### สรุปข้อมูลบริษัทแบบไทย + English")
+                st.write(f"บริษัท: **{data['long_name']}** | Company: **{data['long_name']}**")
+                st.write(f"กลุ่มธุรกิจ (Sector): **{data['sector']}** — {translate_sector_name(data['sector'])}")
+                st.write(f"อุตสาหกรรม (Industry): **{data['industry']}** — ใช้คำศัพท์นี้เพื่อระบุประเภทอุตสาหกรรมหลักของบริษัท")
 
                 p1, p2, p3, p4 = st.columns(4)
                 p1.metric("Sector", data["sector"])
@@ -2156,7 +2215,7 @@ with tab2:
                     st.caption(" | ".join(extra))
 
                 # 2 Business model and future
-                st.subheader("2. 🔮 แนวโน้มธุรกิจในอนาคตแบบเจาะจงรายหุ้น")
+                st.subheader("2. แนวโน้มธุรกิจในอนาคตแบบเจาะจงรายหุ้น (Future Business Outlook)")
                 st.write(
                     f"หุ้น {t_ticker} อยู่ในกลุ่ม {outlook['sector_industry']} "
                     "ดังนั้นการประเมินอนาคตควรเชื่อมโยง 3 เรื่องเข้าด้วยกัน: "
@@ -2179,7 +2238,7 @@ with tab2:
                 st.info(outlook["long_term"])
 
                 # 3 Financial snapshot
-                st.subheader("3. 💰 Financial & Fundamental Snapshot")
+                st.subheader("3. ข้อมูลการเงินและปัจจัยพื้นฐาน (Financial & Fundamental Snapshot)")
                 f1, f2, f3, f4 = st.columns(4)
                 f1.metric("Revenue", format_money(data["revenue"]))
                 f2.metric(
@@ -2208,7 +2267,7 @@ with tab2:
                 f12.metric("EPS", f"${data['eps']:.2f}" if data["eps"] is not None else "N/A")
 
                 # 4 Growth engine
-                st.subheader("4. 🚀 Growth Engine")
+                st.subheader("4.  Growth Engine")
                 st.write(
                     "ดูว่าการเติบโตของบริษัทเกิดจาก Revenue, Earnings และ Cash Flow "
                     "หรือเป็นเพียงการขยาย Valuation"
@@ -2234,7 +2293,7 @@ with tab2:
                 st.write(" | ".join(growth_notes) if growth_notes else "ข้อมูล Growth ไม่ครบ")
 
                 # 5 Valuation
-                st.subheader("5. 💵 Valuation")
+                st.subheader("5.  Valuation")
                 v1, v2, v3, v4 = st.columns(4)
                 v1.metric("P/E", metric_or_na(data["pe"], "x"))
                 v2.metric("Forward P/E", metric_or_na(data["forward_pe"], "x"))
@@ -2246,7 +2305,7 @@ with tab2:
                 )
 
                 # 6 Analyst targets
-                st.subheader("6. 🎯 Analyst Target Price")
+                st.subheader("6. ราคาเป้าหมายจากนักวิเคราะห์ (Analyst Target Price)")
                 a1, a2, a3, a4 = st.columns(4)
                 a1.metric(
                     "Target Low",
@@ -2266,16 +2325,16 @@ with tab2:
                     a4.metric("Upside to Mean", "N/A")
 
                 # 7 Catalysts and risks
-                st.subheader("7. ⚡ Catalyst ที่อาจทำให้หุ้นขึ้น")
+                st.subheader("7. ปัจจัยกระตุ้นราคาหุ้น (Catalysts)")
                 for item in outlook["catalysts"]:
                     st.markdown(f"- **{item}**")
 
-                st.subheader("8. ⚠️ ความเสี่ยงเฉพาะหุ้น")
+                st.subheader("8.  ความเสี่ยงเฉพาะหุ้น")
                 for item in outlook["risks"]:
                     st.markdown(f"- **{item}**")
 
                 # 9 Technical
-                st.subheader("9. 📈 Technical & Momentum")
+                st.subheader("9. การวิเคราะห์ทางเทคนิคและโมเมนตัม (Technical & Momentum)")
                 tc1, tc2, tc3, tc4, tc5 = st.columns(5)
                 tc1.metric("1 Week", f"{t_mom1w:+.2f}%")
                 tc2.metric("1 Month", f"{t_mom1m:+.2f}%")
@@ -2289,7 +2348,7 @@ with tab2:
                     st.warning("ราคาปัจจุบันต่ำกว่า SMA 50 — โครงสร้าง Momentum ระยะกลางยังอ่อนแอ")
 
                 # 10 Risk profile
-                st.subheader("10. 🛡️ Risk Profile")
+                st.subheader("10. โปรไฟล์ความเสี่ยง (Risk Profile)")
                 r1, r2, r3 = st.columns(3)
                 r1.metric("Annualized Volatility", f"{t_vol:.2f}%")
                 r2.metric("Beta", metric_or_na(data["beta"]))
@@ -2303,7 +2362,7 @@ with tab2:
                     st.success("ความผันผวนอยู่ในระดับที่ต่ำกว่าเกณฑ์ 40% ของโมเดล Quant")
 
                 # 11 52-week position
-                st.subheader("11. 📊 ตำแหน่งราคาในกรอบ 52 สัปดาห์")
+                st.subheader("11.  ตำแหน่งราคาในกรอบ 52 สัปดาห์")
                 low52 = data["fifty_two_low"]
                 high52 = data["fifty_two_high"]
                 if outlook["range_position"] is not None:
@@ -2320,7 +2379,7 @@ with tab2:
                     st.info("ไม่มีข้อมูล 52-week range ที่เพียงพอ")
 
                 # 12 Bull/Base/Bear
-                st.subheader("12. 🧠 Bull / Base / Bear Scenario")
+                st.subheader("12.  Bull / Base / Bear Scenario")
                 bull, base, bear = st.columns(3)
                 with bull:
                     st.success(
@@ -2348,26 +2407,26 @@ with tab2:
                     )
 
                 # 13 Final verdict
-                st.subheader("13. 🎯 Final Investment Verdict")
+                st.subheader("13.  Final Investment Verdict")
                 if t_score >= 70:
                     st.success(
-                        f"🟢 STRONG BUY / ACCUMULATE — {t_ticker} ได้ Quant Score "
+                        f" STRONG BUY / ACCUMULATE — {t_ticker} ได้ Quant Score "
                         f"{t_score}/100 และ Momentum เป็นบวก เหมาะกับการพิจารณาทยอยสะสม "
                         "โดยต้องตรวจสอบ Valuation และงบล่าสุดประกอบ"
                     )
                 elif t_score >= 45:
                     st.warning(
-                        f"🟡 HOLD / WAIT & SEE — {t_ticker} ได้ Quant Score "
+                        f" HOLD / WAIT & SEE — {t_ticker} ได้ Quant Score "
                         f"{t_score}/100 สัญญาณยังไม่แข็งแรงพอสำหรับการเพิ่มน้ำหนักแบบ aggressive"
                     )
                 else:
                     st.error(
-                        f"🔴 AVOID / REDUCE RISK — {t_ticker} ได้ Quant Score "
+                        f" AVOID / REDUCE RISK — {t_ticker} ได้ Quant Score "
                         f"{t_score}/100 โครงสร้าง Quant ยังอ่อนแอ ควรรอสัญญาณ Trend ฟื้นตัว"
                     )
 
                 # 14 What to monitor
-                st.subheader("14. 👀 สิ่งที่ควรติดตามในงบไตรมาสถัดไป")
+                st.subheader("14.  สิ่งที่ควรติดตามในงบไตรมาสถัดไป")
                 for item in outlook["watch"]:
                     st.markdown(f"- {item}")
                 st.markdown("- การเปลี่ยนแปลงของ Guidance และประมาณการ EPS")
@@ -2375,7 +2434,7 @@ with tab2:
                 st.markdown("- การตอบสนองของราคาหุ้นต่อผลประกอบการ")
 
                 # 15 Price chart
-                st.subheader(f"15. 📉 ราคาย้อนหลัง 6 เดือน — {t_ticker}")
+                st.subheader(f"15.  ราคาย้อนหลัง 6 เดือน — {t_ticker}")
                 try:
                     hist_chart = yf.download(
                         t_ticker,
@@ -2405,7 +2464,7 @@ with tab2:
 with tab3:
 
     st.subheader(
-        "💼 พอร์ตการลงทุนของคุณ"
+        " พอร์ตการลงทุนของคุณ"
     )
 
     st.write(
@@ -2414,7 +2473,7 @@ with tab3:
     )
 
     with st.expander(
-        "📷 AI OCR — อ่านใบเสร็จซื้อขายหุ้น",
+        " AI OCR — อ่านใบเสร็จซื้อขายหุ้น",
         expanded=False
     ):
 
@@ -2428,7 +2487,7 @@ with tab3:
         )
 
         ai_key_receipt = st.sidebar.text_input(
-            "🔑 OpenAI API Key สำหรับ OCR",
+            " OpenAI API Key สำหรับ OCR",
             type="password",
             key="receipt_key"
         )
@@ -2446,7 +2505,7 @@ with tab3:
             )
 
             if st.button(
-                "🚀 สแกนใบเสร็จ"
+                " สแกนใบเสร็จ"
             ):
 
                 if not ai_key_receipt:
@@ -2696,7 +2755,7 @@ with tab3:
         )
 
     if st.button(
-        "🗑️ ล้างพอร์ตเป็นค่าเริ่มต้น"
+        " ล้างพอร์ตเป็นค่าเริ่มต้น"
     ):
 
         default_df = pd.DataFrame(
@@ -3055,12 +3114,12 @@ with tab3:
             m1, m2, m3 = st.columns(3)
 
             m1.metric(
-                "💰 เงินลงทุน",
+                " เงินลงทุน",
                 f"${total_invested:,.2f}"
             )
 
             m2.metric(
-                "📈 มูลค่าปัจจุบัน",
+                " มูลค่าปัจจุบัน",
                 f"${total_current:,.2f}"
             )
 
@@ -3075,7 +3134,7 @@ with tab3:
             # =============================================
 
             st.subheader(
-                "💡 Quantitative Action Summary"
+                " Quantitative Action Summary"
             )
 
             buy_candidates = df_res[
@@ -3091,7 +3150,7 @@ with tab3:
             with act1:
 
                 st.markdown(
-                    "### 🟢 ซื้อเพิ่ม"
+                    "###  ซื้อเพิ่ม"
                 )
 
                 if not buy_candidates.empty:
@@ -3120,7 +3179,7 @@ with tab3:
             with act2:
 
                 st.markdown(
-                    "### 🔴 ลดความเสี่ยง"
+                    "###  ลดความเสี่ยง"
                 )
 
                 if not sell_candidates.empty:
@@ -3151,7 +3210,7 @@ with tab3:
             # =============================================
 
             st.subheader(
-                "📋 สรุปพอร์ต"
+                " สรุปพอร์ต"
             )
 
             st.dataframe(
@@ -3206,7 +3265,7 @@ with tab3:
             )
 
             st.download_button(
-                "📥 ดาวน์โหลด Portfolio CSV",
+                " ดาวน์โหลด Portfolio CSV",
                 data=df_res.to_csv(
                     index=False
                 ).encode(
@@ -3224,11 +3283,11 @@ with tab3:
 with tab4:
 
     st.subheader(
-        "🤖 AI Portfolio Advisor"
+        " AI Portfolio Advisor"
     )
 
     openai_api_key = st.sidebar.text_input(
-        "🔑 OpenAI API Key สำหรับ AI Chat",
+        " OpenAI API Key สำหรับ AI Chat",
         type="password",
         key="chat_key"
     )
@@ -3399,6 +3458,6 @@ with tab4:
     else:
 
         st.info(
-            "💡 กรุณาใส่ OpenAI API Key "
+            " กรุณาใส่ OpenAI API Key "
             "ที่ Sidebar เพื่อเปิด AI Chat"
         )
