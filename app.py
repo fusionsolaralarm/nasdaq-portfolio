@@ -6,7 +6,7 @@ import openai
 import json
 import os
 
-# --- ตั้งค่าหน้าเว็บให้เป็น Wide Layout และกำหนด Theme ---
+# --- ตั้งค่าธีมแบบ Dynamic ตามที่ผู้ใช้เลือกใน Sidebar ---
 st.set_page_config(
     page_title="Simon Screener & Portfolio AI",
     page_icon="📈",
@@ -14,46 +14,65 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS Styling เพิ่มความสวยงามหรูหราแบบ Quant Dashboard ---
-st.markdown("""
+# --- สร้างกลไกสลับธีม (Light/Dark Mode) ---
+st.sidebar.header("🎨 ตั้งค่าการแสดงผล")
+theme_mode = st.sidebar.selectbox("เลือกธีมหน้าจอ", ["โหมดกลางคืน (Dark Mode)", "โหมดกลางวัน (Light Mode)"])
+
+if theme_mode == "โหมดกลางคืน (Dark Mode)":
+    bg_color = "#0e1117"
+    card_bg = "#161b22"
+    text_color = "#c9d1d9"
+    heading_color = "#58a6ff"
+    border_color = "#30363d"
+else:
+    bg_color = "#ffffff"
+    card_bg = "#f6f8fa"
+    text_color = "#24292e"
+    heading_color = "#0366d6"
+    border_color = "#e1e4e8"
+
+# --- CSS Styling ที่ปรับสีตามธีมที่เลือก และแก้ปัญหาตัวหนังสือมองไม่เห็น ---
+st.markdown(f"""
     <style>
-    .main {
-        background-color: #0e1117;
-    }
-    .stMetric {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-    }
-    .stock-card {
-        background-color: #161b22;
+    .main {{
+        background-color: {bg_color};
+    }}
+    .stock-card {{
+        background-color: {card_bg};
         padding: 20px;
         border-radius: 12px;
-        border: 1px solid #30363d;
+        border: 1px solid {border_color};
         margin-bottom: 15px;
-    }
-    .stTabs [data-baseweb="tab-list"] {
+        color: {text_color};
+    }}
+    .stock-card h3 {{
+        color: {heading_color};
+        margin-top: 0;
+    }}
+    .stock-card p, .stock-card li {{
+        color: {text_color};
+        font-size: 15px;
+    }}
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #161b22;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: {card_bg};
         border-radius: 8px 8px 0px 0px;
         padding: 10px 20px;
-        color: #c9d1d9;
-        border: 1px solid #30363d;
-    }
-    .stTabs [aria-selected="true"] {
+        color: {text_color};
+        border: 1px solid {border_color};
+    }}
+    .stTabs [aria-selected="true"] {{
         background-color: #238636 !important;
         color: white !important;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
 PORTFOLIO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "portfolio_data.json")
 
 def load_portfolio_from_disk():
-    """โหลดพอร์ตที่เคยบันทึกไว้จากไฟล์บนดิสก์ ถ้าไม่เคยมีให้คืนค่าตัวอย่างเริ่มต้น"""
     if os.path.exists(PORTFOLIO_FILE):
         try:
             with open(PORTFOLIO_FILE, "r", encoding="utf-8") as f:
@@ -71,15 +90,14 @@ def load_portfolio_from_disk():
     ])
 
 def save_portfolio_to_disk(df):
-    """บันทึกพอร์ตปัจจุบันลงไฟล์ ครั้งถัดไปที่เปิดแอปจะโหลดข้อมูลเดิมกลับมาให้อัตโนมัติ"""
     try:
         df.to_json(PORTFOLIO_FILE, orient="records", force_ascii=False)
     except Exception as e:
         st.sidebar.error(f"บันทึกพอร์ตลงดิสก์ไม่สำเร็จ: {e}")
 
 # --- Header Section ---
-st.markdown("<h1 style='text-align: center; color: #58a6ff;'>SIMON QUANT & PORTFOLIO AI ADVISOR</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #8b949e;'>ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวด้วยโมเดลสถิติเชิงปริมาณ (Renaissance Technologies Style)</p>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align: center; color: {heading_color};'>SIMON QUANT & PORTFOLIO AI ADVISOR</h1>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: {text_color};'>ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวด้วยโมเดลสถิติเชิงปริมาณ (Renaissance Technologies Style)</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 @st.cache_data
@@ -99,7 +117,6 @@ def get_curated_symbols():
 
 @st.cache_data(ttl=86400)
 def get_full_us_market_symbols():
-    """ดึงรายชื่อหุ้น/หลักทรัพย์ที่จดทะเบียนทั้งหมดในตลาดสหรัฐฯ (NASDAQ + NYSE + AMEX)"""
     try:
         nasdaq_url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
         other_url = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
@@ -130,7 +147,6 @@ def get_full_us_market_symbols():
         return pd.DataFrame({'Symbol': curated, 'Name': curated, 'ETF': False})
 
 def compute_simons_row(ticker, close_series):
-    """คำนวณคะแนนและคำแนะนำสไตล์ Simons จากราคาปิดย้อนหลัง"""
     if close_series is None:
         return None
     close_series = close_series.dropna()
@@ -405,7 +421,7 @@ else:
                             current_price = float(close_series.iloc[-1])
                             ref_price = float(close_series.iloc[-min(5, len(close_series))])
                             wk_change = (current_price - ref_price) / ref_price * 100
-                            trend = "ขาขึ้น" if wk_change > 0.5 else ("ขาลง" if wk_change -0.5 else "ไซด์เวย์")
+                            trend = "ขาขึ้น" if wk_change > 0.5 else ("ขาลง" if wk_change < -0.5 else "ไซด์เวย์")
                 except Exception:
                     if current_price == 0.0:
                         current_price = buy_price
@@ -462,7 +478,7 @@ else:
                     hide_index=True
                 )
 
-                # --- เพิ่มส่วน: บทวิเคราะห์หุ้นรายตัวที่ถืออยู่ (Stock-by-Stock Deep Dive Analysis) ---
+                # --- บทวิเคราะห์หุ้นรายตัวที่ถืออยู่ (Stock Deep Dive Analysis) ---
                 st.markdown("---")
                 st.subheader("🔍 บทวิเคราะห์หุ้นรายตัวเชิงลึกในพอร์ต (Stock Deep Dive Analysis)")
                 st.markdown("รายงานวิเคราะห์สถานะทางเทคนิคและสถิติเชิงปริมาณสำหรับหุ้นแต่ละตัวที่คุณถือครองอยู่:")
@@ -472,19 +488,18 @@ else:
                     pl_pct = r['Profit/Loss (%)']
                     pl_color = "🟢 กำไร" if pl_pct >= 0 else "🔴 ขาดทุน"
                     
-                    with st.container():
-                        st.markdown(f"""
-                        <div class="stock-card">
-                            <h3>📌 หุ้น: {ticker} ({r['Asset Class']})</h3>
-                            <p><b>สถานะกำไร/ขาดทุน:</b> {pl_color} <b>{pl_pct:.2f}%</b> (${r['Profit/Loss ($)']:,.2f}) | <b>น้ำหนักในพอร์ต:</b> {r['Weight in Portfolio (%)']:.1f}%</p>
-                            <ul>
-                                <li><b>คำแนะนำจากโมเดล Simons:</b> {r['Simons Signal']} (คะแนนความแข็งแกร่ง: {r['Score']}/100)</li>
-                                <li><b>แนวโน้มระยะสั้น (Trend):</b> {r['Trend']} (โมเมนตัม 1 เดือน: {r.get('Momentum 1M (%)', 0):.2f}%)</li>
-                                <li><b>ระดับความผันผวน (Volatility):</b> {r.get('Volatility (%)', 0):.2f}% ต่อปี</li>
-                                <li><b>เส้นค่าเฉลี่ย SMA 50:</b> ${r.get('SMA 50', 0):.2f} (ราคาปัจจุบัน: ${r['Current Price (USD)']:,.2f})</li>
-                            </ul>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div class="stock-card">
+                        <h3>📌 หุ้น: {ticker} ({r['Asset Class']})</h3>
+                        <p><b>สถานะกำไร/ขาดทุน:</b> {pl_color} <b>{pl_pct:.2f}%</b> (${r['Profit/Loss ($)']:,.2f}) | <b>น้ำหนักในพอร์ต:</b> {r['Weight in Portfolio (%)']:.1f}%</p>
+                        <ul>
+                            <li><b>คำแนะนำจากโมเดล Simons:</b> {r['Simons Signal']} (คะแนนความแข็งแกร่ง: {r['Score']}/100)</li>
+                            <li><b>แนวโน้มระยะสั้น (Trend):</b> {r['Trend']} (โมเมนตัม 1 เดือน: {r.get('Momentum 1M (%)', 0):.2f}%)</li>
+                            <li><b>ระดับความผันผวน (Volatility):</b> {r.get('Volatility (%)', 0):.2f}% ต่อปี</li>
+                            <li><b>เส้นค่าเฉลี่ย SMA 50:</b> ${r.get('SMA 50', 0):.2f} (ราคาปัจจุบัน: ${r['Current Price (USD)']:,.2f})</li>
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 st.download_button(
                     label="📥 ดาวน์โหลดรายงานพอร์ต (CSV)",
