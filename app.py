@@ -4,17 +4,14 @@ import yfinance as yf
 import numpy as np
 import openai
 
-# ตั้งค่าหน้าเว็บ
 st.set_page_config(
     page_title="Simon Screener & Portfolio AI",
-    page_icon="📈",
     layout="wide"
 )
 
-st.title("📈 Simon Screener - Quant & Portfolio AI Advisor")
+st.title("Simon Screener - Quant & Portfolio AI Advisor")
 st.markdown("ระบบสแกนหุ้นสหรัฐฯ และผู้ช่วยวิเคราะห์พอร์ตการลงทุนส่วนตัวในสไตล์ Jim Simons (Renaissance Technologies)")
 
-# รายชื่อหุ้นตลาดสหรัฐฯ สำหรับสแกน
 @st.cache_data
 def get_us_stock_symbols():
     return [
@@ -32,7 +29,7 @@ def get_us_stock_symbols():
 
 symbols = get_us_stock_symbols()
 
-@st.cache_data(ttl=1800) # แคชข้อมูล 30 นาทีเพื่อให้ดึงราคาล่าสุดรวดเร็ว
+@st.cache_data(ttl=1800)
 def fetch_stock_data_and_simons_logic(ticker_list):
     data_list = []
     for ticker in ticker_list:
@@ -53,7 +50,6 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             sma_50 = float(close_series.rolling(min(30, len(close_series))).mean().iloc[-1])
             volatility = float(close_series.pct_change().std() * np.sqrt(252) * 100)
 
-            # ตรรกะ Quant Score แบบ Jim Simons
             simons_score = 50 
             if current_p > sma_50: 
                 simons_score += 25
@@ -73,11 +69,11 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             simons_score = max(0, min(100, simons_score))
 
             if simons_score >= 70: 
-                recommendation = "🟢 ซื้อสะสม (Strong Buy)"
+                recommendation = "ซื้อสะสม (Strong Buy)"
             elif simons_score >= 45: 
-                recommendation = "🟡 ถือ / เฝ้าสังเกต (Hold)"
+                recommendation = "ถือ / เฝ้าสังเกต (Hold)"
             else: 
-                recommendation = "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
+                recommendation = "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"
 
             data_list.append({
                 'Ticker': ticker,
@@ -93,18 +89,17 @@ def fetch_stock_data_and_simons_logic(ticker_list):
             
     return pd.DataFrame(data_list)
 
-with st.spinner("🤖 กำลังดึงราคาล่าสุดและคำนวณโมเดลตลาดสหรัฐฯ..."):
+with st.spinner("กำลังดึงราคาล่าสุดและคำนวณโมเดลตลาดสหรัฐฯ..."):
     df = fetch_stock_data_and_simons_logic(symbols)
 
 if df.empty:
     st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บใหม่อีกครั้ง")
 else:
-    # แบ่งหน้าจอเป็น Tab หลัก: 1. สแกนหุ้น 2. วิเคราะห์พอร์ตส่วนตัว 3. แชทร่วมกับ AI
-    tab1, tab2, tab3 = st.tabs(["📊 สแกนหุ้นตลาด (Market Screener)", "💼 จัดการและวิเคราะห์พอร์ตของฉัน (My Portfolio)", "💬 คุยกับ AI Jim Simons"])
+    tab1, tab2, tab3 = st.tabs(["สแกนหุ้นตลาด", "พอร์ตของฉัน", "คุยกับ AI Jim Simons"])
     
     with tab1:
-        st.subheader("📊 ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ")
-        signal_filter = st.selectbox("กรองตามคำแนะนำโมเดล", ["ทั้งหมด", "🟢 ซื้อสะสม (Strong Buy)", "🟡 ถือ / เฝ้าสังเกต (Hold)", "🔴 ควรขาย / หลีกเลี่ยง (Sell / Avoid)"])
+        st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ")
+        signal_filter = st.selectbox("กรองตามคำแนะนำโมเดล", ["ทั้งหมด", "ซื้อสะสม (Strong Buy)", "ถือ / เฝ้าสังเกต (Hold)", "ควรขาย / หลีกเลี่ยง (Sell / Avoid)"])
         
         df_filtered = df if signal_filter == "ทั้งหมด" else df[df['Simons Signal'] == signal_filter]
         
@@ -120,82 +115,120 @@ else:
                 "Volatility (%)": st.column_config.NumberColumn(format="%.2f%%"),
                 "Score": st.column_config.NumberColumn(format="%d คะแนน"),
             },
-            width="stretch",
+            use_container_width=True,
             hide_index=True
         )
 
     with tab2:
-        st.subheader("💼 พอร์ตการลงทุนของคุณ (My Portfolio Analysis)")
-        st.markdown("กรอกชื่อหุ้นและจำนวนหุ้นที่คุณถืออยู่ เพื่อให้โมเดล AI ตรวจสอบสถานะและคำแนะนำซื้อ/ขายรายตัวทันที")
+        st.subheader("พอร์ตการลงทุนของคุณ (My Portfolio Analysis)")
+        st.markdown("กรอกข้อมูลหุ้น จำนวนหุ้น และราคาต้นทุนที่คุณซื้อมา ระบบจะคำนวณมูลค่าปัจจุบัน กำไร/ขาดทุน (%) และสัดส่วนน้ำหนักพอร์ต (Allocation) ให้ทันที")
         
-        # ฟอร์มกรอกพอร์ต
-        col_input1, col_input2 = st.columns(2)
-        with col_input1:
-            user_tickers = st.text_input("ระบุ Ticker หุ้นที่คุณถือ (คั่นด้วยคอมมา เช่น AAPL, TSLA, NVDA)", "AAPL, MSFT, TSLA")
-        
-        if user_tickers:
-            tickers_list = [t.strip().upper() for t in user_tickers.split(",") if t.strip()]
-            portfolio_data = []
+        if "portfolio_input" not in st.session_state:
+            st.session_state.portfolio_input = pd.DataFrame([
+                {"Ticker": "AAPL", "Shares": 10.0, "Buy Price (USD)": 170.0},
+                {"Ticker": "TSLA", "Shares": 5.0, "Buy Price (USD)": 220.0}
+            ])
             
-            for t in tickers_list:
-                # ดึงข้อมูลหุ้นตัวนั้นๆ สดๆ
-                match_row = df[df['Ticker'] == t]
+        edited_portfolio = st.data_editor(st.session_state.portfolio_input, num_rows="dynamic", use_container_width=True)
+        
+        if not edited_portfolio.empty:
+            portfolio_results = []
+            for index, row in edited_portfolio.iterrows():
+                ticker = str(row['Ticker']).strip().upper()
+                shares = float(row['Shares'])
+                buy_price = float(row['Buy Price (USD)'])
+                
+                if not ticker or shares <= 0 or buy_price <= 0:
+                    continue
+                    
+                current_price = 0.0
+                signal = "ถือประเมินสถานะ"
+                score = 50
+                
+                match_row = df[df['Ticker'] == ticker]
                 if not match_row.empty:
-                    row = match_row.iloc[0].to_dict()
-                    portfolio_data.append(row)
+                    current_price = float(match_row.iloc[0]['Price (USD)'])
+                    signal = match_row.iloc[0]['Simons Signal']
+                    score = int(match_row.iloc[0]['Score'])
                 else:
-                    # กรณีหุ้นนอกเหนือจากลิสต์สแกน ให้ดึงแยกเฉพาะตัว
                     try:
-                        hist = yf.download(t, period="3mo", progress=False)
+                        hist = yf.download(ticker, period="1mo", progress=False)
                         if not hist.empty:
-                            cp = float(hist['Close'].iloc[-1])
-                            portfolio_data.append({
-                                'Ticker': t,
-                                'Simons Signal': "🟡 ถือประเมินสถานะ",
-                                'Score': 50,
-                                'Price (USD)': cp,
-                                'Momentum 1M (%)': 0,
-                                'Volatility (%)': 30,
-                                'SMA 50': cp
-                            })
+                            current_price = float(hist['Close'].iloc[-1])
                     except Exception:
-                        continue
-                        
-            if portfolio_data:
-                df_port = pd.DataFrame(portfolio_data)
-                st.markdown("### 📋 ผลวิเคราะห์พอร์ตของคุณโดย Jim Simons Model:")
+                        current_price = buy_price
+                
+                invested_value = shares * buy_price
+                current_value = shares * current_price
+                profit_loss_usd = current_value - invested_value
+                profit_loss_pct = ((current_price - buy_price) / buy_price) * 100 if buy_price > 0 else 0.0
+                
+                portfolio_results.append({
+                    'Ticker': ticker,
+                    'Shares': shares,
+                    'Buy Price (USD)': buy_price,
+                    'Current Price (USD)': current_price,
+                    'Invested Value ($)': invested_value,
+                    'Current Value ($)': current_value,
+                    'Profit/Loss ($)': profit_loss_usd,
+                    'Profit/Loss (%)': profit_loss_pct,
+                    'Simons Signal': signal,
+                    'Score': score
+                })
+                
+            if portfolio_results:
+                df_res = pd.DataFrame(portfolio_results)
+                
+                total_invested = df_res['Invested Value ($)'].sum()
+                total_current = df_res['Current Value ($)'].sum()
+                total_pl = total_current - total_invested
+                total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
+                
+                # คำนวณสัดส่วนน้ำหนักพอร์ต (%)
+                if total_current > 0:
+                    df_res['Allocation (%)'] = (df_res['Current Value ($)'] / total_current) * 100
+                else:
+                    df_res['Allocation (%)'] = 0.0
+                
+                st.markdown("---")
+                col_m1, col_m2, col_m3 = st.columns(3)
+                col_m1.metric("มูลค่าลงทุนรวม", f"${total_invested:,.2f}")
+                col_m2.metric("มูลค่าปัจจุบันรวม", f"${total_current:,.2f}")
+                col_m3.metric("กำไร/ขาดทุนรวม", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
+                
+                st.markdown("### รายละเอียดพอร์ตและผลตอบแทนรายตัว")
                 st.dataframe(
-                    df_port[['Ticker', 'Simons Signal', 'Score', 'Price (USD)', 'Momentum 1M (%)', 'Volatility (%)']],
+                    df_res[['Ticker', 'Shares', 'Buy Price (USD)', 'Current Price (USD)', 'Allocation (%)', 'Profit/Loss ($)', 'Profit/Loss (%)', 'Simons Signal', 'Score']],
                     column_config={
-                        "Price (USD)": st.column_config.NumberColumn(format="$%.2f"),
-                        "Momentum 1M (%)": st.column_config.NumberColumn(format="%.2f%%"),
+                        "Buy Price (USD)": st.column_config.NumberColumn(format="$%.2f"),
+                        "Current Price (USD)": st.column_config.NumberColumn(format="$%.2f"),
+                        "Allocation (%)": st.column_config.NumberColumn(format="%.2f%%"),
+                        "Profit/Loss ($)": st.column_config.NumberColumn(format="$%.2f"),
+                        "Profit/Loss (%)": st.column_config.NumberColumn(format="%.2f%%"),
                         "Score": st.column_config.NumberColumn(format="%d คะแนน"),
                     },
-                    width="stretch",
+                    use_container_width=True,
                     hide_index=True
                 )
                 
-                # คำแนะนำเชิงลึกสำหรับพอร์ต
-                st.markdown("---")
-                st.markdown("### 💡 คำแนะนำเพิ่มเติมสำหรับพอร์ตของคุณ:")
-                for index, row in df_port.iterrows():
-                    if "ซื้อสะสม" in row['Simons Signal']:
-                        st.success(f"**{row['Ticker']}**: โมเดลประเมินว่าอยู่ในเกณฑ์แข็งแกร่ง (Score: {row['Score']}) โมเมนตัมเป็นบวก เหมาะสมที่จะ **ถือต่อหรือทยอยซื้อเพิ่ม**")
-                    elif "ถือ" in row['Simons Signal']:
-                        st.warning(f"**{row['Ticker']}**: สัญญาณอยู่ในโซนพักตัว (Score: {row['Score']}) แนะนำให้ **ถือรอดูสถานะ** และคุมความเสี่ยง")
+                st.markdown("### คำแนะนำเชิงกลยุทธ์รายตัว")
+                for _, r in df_res.iterrows():
+                    pl_text = f"กำไร {r['Profit/Loss (%)']:.2f}%" if r['Profit/Loss (%)'] >= 0 else f"ขาดทุน {r['Profit/Loss (%)']:.2f}%"
+                    if "ซื้อสะสม" in r['Simons Signal']:
+                        st.success(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สถานะพอร์ตแข็งแกร่ง แนะนำถือต่อหรือทยอยเพิ่มทุน")
+                    elif "ถือ" in r['Simons Signal']:
+                        st.warning(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณอยู่ในโซนพักตัว แนะนำถือรอดูสถานะต่อไป")
                     else:
-                        st.error(f"**{row['Ticker']}**: สัญญาณทางสถิติอ่อนแอและความเสี่ยงสูง (Score: {row['Score']}) โมเดลแนะนำให้ **พิจารณาขายทำกำไรหรือตัดขาดทุน** เพื่อความปลอดภัยของพอร์ต")
-            else:
-                st.warning("ไม่พบข้อมูลหุ้นที่คุณกรอก กรุณาตรวจสอบตัวย่อ Ticker อีกครั้ง")
+                        st.error(f"{r['Ticker']} (ต้นทุน: ${r['Buy Price (USD)']:.2f} | ปัจจุบัน: ${r['Current Price (USD)']:.2f} | สัดส่วนในพอร์ต: {r['Allocation (%)']:.2f}% | {pl_text}): สัญญาณทางสถิติอ่อนแอ แนะนำพิจารณาขายทำกำไรหรือตัดขาดทุน")
 
     with tab3:
-        st.subheader("💬 พูดคุยกับ AI ปรมาจารย์ Jim Simons")
-        openai_api_key = st.sidebar.text_input("🔑 ใส่ OpenAI API Key (สำหรับเปิดใช้งาน AI Chat)", type="password")
+        st.subheader("พูดคุยกับ AI ปรมาจารย์ Jim Simons")
+        openai_api_key = st.sidebar.text_input("ใส่ OpenAI API Key (สำหรับเปิดใช้งาน AI Chat)", type="password")
 
         if openai_api_key:
             if "messages" not in st.session_state:
                 st.session_state.messages = [
-                    {"role": "system", "content": "คุณคือ Jim Simons ปรมาจารย์กองทุน Quantitative ระดับโลก (Renaissance Technologies) คอยให้คำแนะนำเรื่องพอร์ตหุ้น สถิติตลาด และการลงทุนด้วยตรรกะคณิตศาสตร์อย่างเป็นกันเอง"}
+                    {"role": "system", "content": "คุณคือ Jim Simons ปรมาจารย์กองทุน Quantitative ระดับโลก (Renaissance Technologies) คอยให้คำแนะนำเรื่องพอร์ตหุ้น สถิติตลาด และการลงทุนด้วยตรรกะคณิตศาสตร์อย่างเป็นทางการ ห้ามใช้อีโมจิเด็ดขาด"}
                 ]
                 
             for message in st.session_state.messages:
@@ -222,4 +255,4 @@ else:
                         except Exception as e:
                             st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ OpenAI: {e}")
         else:
-            st.info("💡 กรอก OpenAI API Key ที่แถบซ้ายมือ (Sidebar) เพื่อเปิดใช้งานช่องแชทปรึกษาพอร์ตกับ Jim Simons ครับ!")
+            st.info("กรอก OpenAI API Key ที่แถบซ้ายมือ (Sidebar) เพื่อเปิดใช้งานช่องแชทปรึกษาพอร์ตกับ Jim Simons ครับ")
