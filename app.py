@@ -53,6 +53,19 @@ st.markdown(f"""
         color: {text_color};
         font-size: 15px;
     }}
+    .article-box {{
+        background-color: {card_bg};
+        padding: 25px;
+        border-radius: 12px;
+        border: 1px solid {border_color};
+        margin-top: 20px;
+        margin-bottom: 20px;
+        color: {text_color};
+        line-height: 1.6;
+    }}
+    .article-box h2, .article-box h3 {{
+        color: {heading_color};
+    }}
     .action-box-buy {{
         background-color: rgba(35, 134, 54, 0.15);
         border: 1px solid #238636;
@@ -277,22 +290,17 @@ scan_mode = st.sidebar.radio(
     ["รายชื่อคัดสรร (~85 ตัว, เร็ว)", "ทั้งตลาดหุ้นสหรัฐฯ (NASDAQ + NYSE + AMEX)"]
 )
 
-# --- ช่องค้นหาหุ้นเฉพาะตัวเพื่อสแกนด่วน (แสดงเฉพาะในผลสแกนหน้าแรก ไม่เกี่ยวกับพอร์ต) ---
+# --- ช่องค้นหาหุ้นรายตัวเพื่อสแกนและทำบทความวิเคราะห์เจาะจง ---
 st.sidebar.markdown("---")
-st.sidebar.subheader("🔍 ค้นหาหุ้นรายตัวเพื่อสแกนด่วน")
-custom_search_input = st.sidebar.text_input("พิมพ์ Ticker (เช่น NVDA, PLTR, MSFT)", "").upper().strip()
-custom_symbols_to_add = []
-if custom_search_input:
-    raw_symbols = [s.strip() for s in custom_search_input.replace(",", " ").split() if s.strip()]
-    if raw_symbols:
-        custom_symbols_to_add = raw_symbols
-        st.sidebar.success(f"เพิ่มหุ้นในตารางสแกน: {', '.join(custom_symbols_to_add)}")
+st.sidebar.subheader("🔍 วิเคราะห์หุ้นรายตัว (Deep Dive)")
+custom_deep_dive_ticker = st.sidebar.text_input("พิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์", "").upper().strip()
 
 if scan_mode.startswith("รายชื่อคัดสรร"):
     symbols = get_curated_symbols()
-    if custom_symbols_to_add:
-        symbols = list(set(symbols + custom_symbols_to_add))
-    
+    # หากผู้ใช้กรอกหุ้นเจาะจง ให้แถมเข้าไปสแกนในตารางหลักด้วย
+    if custom_deep_dive_ticker and custom_deep_dive_ticker not in symbols:
+        symbols.append(custom_deep_dive_ticker)
+
     with st.spinner("กำลังประมวลผลโมเดล Quant..."):
         df = fetch_stock_data_and_simons_logic(symbols)
 else:
@@ -314,10 +322,11 @@ else:
     )
     run_scan = st.sidebar.button("🚀 เริ่มสแกนตลาดเต็มรูปแบบ", use_container_width=True)
 
-    if run_scan or custom_symbols_to_add:
-        target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
-        if custom_symbols_to_add:
-            target_symbols = list(set(target_symbols + custom_symbols_to_add))
+    target_symbols = universe_df['Symbol'].iloc[start_offset:start_offset + max_scan].tolist()
+    if custom_deep_dive_ticker and custom_deep_dive_ticker not in target_symbols:
+        target_symbols.append(custom_deep_dive_ticker)
+
+    if run_scan or custom_deep_dive_ticker:
         st.session_state.full_scan_df = fetch_stock_data_batched(target_symbols)
         st.session_state.full_scan_range = (start_offset, start_offset + len(target_symbols))
 
@@ -326,14 +335,14 @@ else:
         rng = st.session_state.get("full_scan_range", (0, len(df)))
         st.sidebar.caption(f"ผลสแกนล่าสุด: ช่วงลำดับ {rng[0]:,}-{rng[1]:,}")
     else:
-        st.info("👈 กรุณาเลือกโหมด หรือพิมพ์ค้นหาหุ้นที่ต้องการสแกนด่วนที่แถบด้านซ้ายมือ")
+        st.info("👈 กรุณาเลือกโหมด หรือพิมพ์ Ticker หุ้นที่ต้องการสแกนและวิเคราะห์รายตัวที่แถบด้านซ้ายมือ")
         st.stop()
 
 if df.empty:
     st.error("ไม่สามารถดึงข้อมูลได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บ หรือตรวจสอบ Ticker ที่ค้นหาอีกครั้ง")
 else:
     # --- Tabs Layout ---
-    tab1, tab2, tab3 = st.tabs(["📊 สแกนหุ้นตลาด", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 สแกนหุ้นตลาด", "📝 บทความวิเคราะห์หุ้นรายตัว", "💼 พอร์ตของฉัน & วิเคราะห์รายตัว", "🤖 คุยกับ AI Jim Simons"])
 
     with tab1:
         st.subheader("ตารางสแกนหุ้นสหรัฐฯ เชิงปริมาณ (Quantitative Screener)")
@@ -360,8 +369,79 @@ else:
             hide_index=True
         )
 
+    with tab4: # ย้าย tab มาไว้ท้ายสุดเพื่อให้เป็นระเบียบ แต่เก็บลำดับการแสดงผลถูกต้อง
+        pass
+
     with tab2:
-        st.subheader("พอร์ตการลงทุนของคุณ (My Portfolio & Deep Dive Analysis)")
+        st.subheader("📝 บทความวิเคราะห์หุ้นรายตัวเชิงลึก (Quantitative Deep Dive Article)")
+        
+        if not custom_deep_dive_ticker:
+            st.info("💡 กรุณาพิมพ์ Ticker หุ้นที่ต้องการวิเคราะห์ในช่อง **'วิเคราะห์หุ้นรายตัว (Deep Dive)'** ที่แถบด้านซ้ายมือ เพื่อสร้างบทความวิเคราะห์")
+        else:
+            match_dd = df[df['Ticker'] == custom_deep_dive_ticker]
+            if match_dd.empty:
+                # ลองดึงข้อมูลแยกเฉพาะตัวกรณีที่ไม่อยู่ในลิสต์สแกนหลัก
+                try:
+                    hist_dd = yf.download(custom_deep_dive_ticker, period="6mo", progress=False)
+                    if not hist_dd.empty:
+                        cs_dd = hist_dd['Close'].iloc[:, 0] if isinstance(hist_dd.columns, pd.MultiIndex) else hist_dd['Close']
+                        row_dd = compute_simons_row(custom_deep_dive_ticker, cs_dd)
+                        if row_dd:
+                            match_dd = pd.DataFrame([row_dd])
+                except Exception:
+                    pass
+
+            if match_dd.empty:
+                st.error(f"ไม่พบข้อมูลสำหรับ Ticker: {custom_deep_dive_ticker} กรุณาตรวจสอบความถูกต้องของชื่อหุ้นอีกครั้ง")
+            else:
+                r_dd = match_dd.iloc[0]
+                t_ticker = r_dd['Ticker']
+                t_price = r_dd['Price (USD)']
+                t_score = r_dd['Score']
+                t_signal = r_dd['Simons Signal']
+                t_trend = r_dd['Trend']
+                t_mom1m = r_dd['Momentum 1M (%)']
+                t_mom1w = r_dd['Momentum 1W (%)']
+                t_vol = r_dd['Volatility (%)']
+                t_sma50 = r_dd['SMA 50']
+
+                # สร้างบทความวิเคราะห์อัตโนมัติสไตล์ Quant
+                st.markdown(f"""
+                <div class="article-box">
+                    <h2>รายงานวิเคราะห์เชิงปริมาณ: หุ้น {t_ticker} ประจำรอบการประเมิน</h2>
+                    <p><b>วันที่ออกรายงาน:</b> Real-time Quantitative Scan | <b>ราคาซื้อขายล่าสุด:</b> ${t_price:,.2f} USD</p>
+                    <hr style="border-color: {border_color};">
+                    
+                    <h3>1. สรุปภาพรวมคะแนนและความน่าจะเป็น (Quantitative Score & Verdict)</h3>
+                    <p>โมเดลเชิงปริมาณประเมินความแข็งแกร่งของหลักทรัพย์ <b>{t_ticker}</b> ได้คะแนนรวมอยู่ที่ <b>{t_score}/100 คะแนน</b> โดยให้คำแนะนำสถานะทางสถิติเป็น: <span style="color: {heading_color}; font-weight: bold;">{t_signal}</span> โครงสร้างราคาปัจจุบันเคลื่อนไหวอยู่ในภาวะ <b>{t_trend}</b> สะท้อนถึงพฤติกรรมราคาที่ขับเคลื่อนด้วยความน่าจะเป็นทางสถิติในช่วง 1-3 เดือนที่ผ่านมา</p>
+
+                    <h3>2. การวิเคราะห์โมเมนตัมและเส้นค่าเฉลี่ย (Momentum & Trend Structure)</h3>
+                    <ul>
+                        <li><b>โมเมนตัมระยะ 1 เดือน (1M Momentum):</b> เปลี่ยนแปลงอยู่ที่ <b>{t_mom1m:+.2f}%</b> ชี้ให้เห็นถึงแรงขับเคลื่อนระยะกลางว่าสอดคล้องกับทิศทางหลักของตลาดหรือไม่</li>
+                        <li><b>โมเมนตัมระยะ 1 สัปดาห์ (1W Momentum):</b> อยู่ที่ <b>{t_mom1w:+.2f}%</b> บ่งบอกถึงความตื่นตัวของเม็ดเงินระยะสั้น</li>
+                        <li><b>เส้นค่าเฉลี่ย 50 วัน (SMA 50):</b> ปัจจุบันอยู่ที่ระดับ <b>${t_sma50:,.2f} USD</b> เปรียบเทียบกับราคาปัจจุบัน (${t_price:,.2f} USD) พบว่าราคาอยู่{ "เหนือ" if t_price > t_sma50 else "ต่ำกว่า" }เส้นแนวรับสำคัญทางสถิตินี้ ซึ่งเป็นเกณฑ์ตัดสินใจหลักในการถือครองความเสี่ยง</li>
+                    </ul>
+
+                    <h3>3. การประเมินความเสี่ยงและความผันผวน (Risk & Volatility Profile)</h3>
+                    <p>ค่าความผันผวนรายปี (Annualized Volatility) ของ <b>{t_ticker}</b> อยู่ที่ระดับ <b>{t_vol:.2f}%</b> หากค่าความผันผวนสูงเกินกรอบจำกัด โมเดลจะปรับลดน้ำหนักความน่าสนใจลงโดยอัตโนมัติเพื่อป้องกันความเสี่ยงจากความผิดพลาดของราคา (Tail Risk) ตามหลักการลงทุนของ Renaissance Technologies</p>
+
+                    <h3>4. ข้อเสนอแนะเชิงกลยุทธ์ (Algorithmic Action Plan)</h3>
+                    <p>จากผลการรันอัลกอริทึม หากท่านสนใจลงทุนในหลักทรัพย์ตัวนี้ ควรพิจารณาจากขนาดของพอร์ต (Position Sizing) และวินิจฉัยตามสัญญาณ <b>{t_signal}</b> ควบคู่กับการตั้งจุดบริหารความเสี่ยง (Stop Loss) อย่างเคร่งครัด ห้ามใช้อารมณ์ความรู้สึกในการตัดสินใจซื้อขายเด็ดขาด</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # กราฟราคาชั่วคราวประกอบบทความ
+                try:
+                    hist_chart = yf.download(t_ticker, period="6mo", progress=False)
+                    if not hist_chart.empty:
+                        close_c = hist_chart['Close'].iloc[:, 0] if isinstance(hist_chart.columns, pd.MultiIndex) else hist_chart['Close']
+                        st.subheader(f"📈 กราฟราคาปิดย้อนหลัง 6 เดือนของ {t_ticker}")
+                        st.line_chart(close_c)
+                except Exception:
+                    pass
+
+    with tab3:
+        st.subheader("💼 พอร์ตการลงทุนของคุณ (My Portfolio & Deep Dive Analysis)")
         st.markdown("จัดการข้อมูลพอร์ตของคุณด้านล่าง ระบบจะบันทึกอัตโนมัติ พร้อมทั้งแสดง **บทวิเคราะห์หุ้นรายตัวเชิงลึก** ทันที")
 
         if "portfolio_input" not in st.session_state:
@@ -547,29 +627,6 @@ else:
                     hide_index=True
                 )
 
-                # --- บทวิเคราะห์หุ้นรายตัวที่ถืออยู่ (Stock Deep Dive Analysis) ---
-                st.markdown("---")
-                st.subheader("🔍 บทวิเคราะห์หุ้นรายตัวเชิงลึกในพอร์ต (Stock Deep Dive Analysis)")
-                st.markdown("รายงานวิเคราะห์สถานะทางเทคนิคและสถิติเชิงปริมาณสำหรับหุ้นแต่ละตัวที่คุณถือครองอยู่:")
-
-                for _, r in df_res.iterrows():
-                    ticker = r['Ticker']
-                    pl_pct = r['Profit/Loss (%)']
-                    pl_color = "🟢 กำไร" if pl_pct >= 0 else "🔴 ขาดทุน"
-                    
-                    st.markdown(f"""
-                    <div class="stock-card">
-                        <h3>📌 หุ้น: {ticker} ({r['Asset Class']})</h3>
-                        <p><b>สถานะกำไร/ขาดทุน:</b> {pl_color} <b>{pl_pct:.2f}%</b> (${r['Profit/Loss ($)']:,.2f}) | <b>น้ำหนักในพอร์ต:</b> {r['Weight in Portfolio (%)']:.1f}%</p>
-                        <ul>
-                            <li><b>คำแนะนำจากโมเดล Simons:</b> {r['Simons Signal']} (คะแนนความแข็งแกร่ง: {r['Score']}/100)</li>
-                            <li><b>แนวโน้มระยะสั้น (Trend):</b> {r['Trend']} (โมเมนตัม 1 เดือน: {r.get('Momentum 1M (%)', 0):.2f}%)</li>
-                            <li><b>ระดับความผันผวน (Volatility):</b> {r.get('Volatility (%)', 0):.2f}% ต่อปี</li>
-                            <li><b>เส้นค่าเฉลี่ย SMA 50:</b> ${r.get('SMA 50', 0):.2f} (ราคาปัจจุบัน: ${r['Current Price (USD)']:,.2f})</li>
-                        </ul>
-                    </div>
-                    """, unsafe_allow_html=True)
-
                 st.download_button(
                     label="📥 ดาวน์โหลดรายงานพอร์ต (CSV)",
                     data=df_res.to_csv(index=False).encode('utf-8-sig'),
@@ -577,7 +634,7 @@ else:
                     mime="text/csv"
                 )
 
-    with tab3:
+    with tab4:
         st.subheader("🤖 พูดคุยกับ AI ปรมาจารย์ Jim Simons")
         openai_api_key = st.sidebar.text_input("🔑 ใส่ OpenAI API Key", type="password")
 
