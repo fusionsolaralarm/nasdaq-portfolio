@@ -887,7 +887,7 @@ with tab4:
                         for attempt in range(max_retries):
                             try:
                                 response = client.models.generate_content(
-                                    model="gemini-2.5-flash",  # อัปเดตชื่อโมเดลตรงนี้
+                                    model="gemini-2.5-flash",  # อัปเดตชื่อโมเดลตรงตามระบบ
                                     contents=gemini_contents,
                                     config=types.GenerateContentConfig(system_instruction=system_instruction)
                                 )
