@@ -826,6 +826,8 @@ with tab3:
 # ---------------------------------------------------------------------
 # TAB 4 — AI CHAT
 # ---------------------------------------------------------------------
+import time
+
 with tab4:
     st.subheader("พูดคุยกับ AI ปรมาจารย์ Jim Simons")
     st.sidebar.caption(
@@ -878,14 +880,29 @@ with tab4:
                             )
                             for m in st.session_state.messages
                         ]
-                        response = client.models.generate_content(
-                            model="gemini-flash-latest",
-                            contents=gemini_contents,
-                            config=types.GenerateContentConfig(system_instruction=system_instruction)
-                        )
-                        reply = response.text
-                        st.markdown(reply)
-                        st.session_state.messages.append({"role": "assistant", "content": reply})
+                        
+                        # เพิ่มระบบ Retry หากพบข้อผิดพลาด 503 UNAVAILABLE
+                        max_retries = 3
+                        reply = None
+                        
+                        for attempt in range(max_retries):
+                            try:
+                                response = client.models.generate_content(
+                                    model="gemini-2.5-flash",  # เปลี่ยนชื่อโมเดลเป็นรุ่นที่เสถียร
+                                    contents=gemini_contents,
+                                    config=types.GenerateContentConfig(system_instruction=system_instruction)
+                                )
+                                reply = response.text
+                                break
+                            except Exception as err:
+                                if ("503" in str(err) or "UNAVAILABLE" in str(err)) and attempt < max_retries - 1:
+                                    time.sleep(2)  # หน่วงเวลา 2 วินาทีแล้วลองส่งใหม่
+                                    continue
+                                raise err
+
+                        if reply:
+                            st.markdown(reply)
+                            st.session_state.messages.append({"role": "assistant", "content": reply})
                     except Exception as e:
                         st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini: {e}")
     else:
