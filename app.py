@@ -858,7 +858,7 @@ with tab4:
 
         if "messages" not in st.session_state or st.session_state.get("last_system_prompt") != system_instruction:
             st.session_state.messages = []
-            st.session_state.last_system_prompt = system_instruction
+            st.session_state.last_session_prompt = system_instruction
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -887,7 +887,7 @@ with tab4:
                         for attempt in range(max_retries):
                             try:
                                 response = client.models.generate_content(
-                                    model="gemini-2.5-flash",  # อัปเดตชื่อโมเดลตรงตามระบบ
+                                    model="gemini-2.5-flash",  # อัปเดตตามที่ระบบ Error แนะนำ
                                     contents=gemini_contents,
                                     config=types.GenerateContentConfig(system_instruction=system_instruction)
                                 )
