@@ -873,10 +873,12 @@ with tab4:
                 with st.spinner("Jim Simons กำลังคำนวณโมเดลคำตอบ..."):
                     try:
                         client = genai.Client(api_key=gemini_api_key)
+                        
+                        # แปลงประวัติข้อความ
                         gemini_contents = [
                             types.Content(
                                 role=("user" if m["role"] == "user" else "model"),
-                                parts=[types.Part(text=m["content"])]
+                                parts=[types.Part.from_text(text=m["content"])]
                             )
                             for m in st.session_state.messages
                         ]
@@ -886,10 +888,13 @@ with tab4:
                         
                         for attempt in range(max_retries):
                             try:
+                                # ใช้ gemini-2.5-flash สำหรับ google-genai SDK
                                 response = client.models.generate_content(
-                                    model="gemini-1.5-flash",  # ใช้ชื่อโมเดลมาตรฐานของ Gemini API
+                                    model="gemini-2.5-flash",
                                     contents=gemini_contents,
-                                    config=types.GenerateContentConfig(system_instruction=system_instruction)
+                                    config=types.GenerateContentConfig(
+                                        system_instruction=system_instruction
+                                    )
                                 )
                                 reply = response.text
                                 break
